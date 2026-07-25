@@ -1,5 +1,6 @@
 #![allow(dead_code)]
 
+use crate::AppWindow;
 use i_slint_backend_winit::WinitWindowAccessor;
 use slint::ComponentHandle;
 use slint::Window;
@@ -16,25 +17,27 @@ use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
 };
 use windows::Win32::UI::Controls::MARGINS;
+use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTLEFT, HTRIGHT, HTTOP,
-    HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS, SIZE_MAXIMIZED, SIZE_RESTORED,
-    WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_SIZE,
+    GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTLEFT, HTMAXBUTTON, HTRIGHT,
+    HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS, SIZE_MAXIMIZED, SIZE_RESTORED,
+    WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP,
+    WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
 };
 
-type MaximizeCallback<T> = Arc<dyn Fn(&T, bool) + Send + Sync + 'static>;
+type MaximizeCallback = Arc<dyn Fn(&AppWindow, bool) + Send + Sync + 'static>;
 
-struct FrameState<T: ComponentHandle + 'static> {
-    weak: slint::Weak<T>,
-    on_maximized: Mutex<Option<MaximizeCallback<T>>>,
+struct FrameState {
+    weak: slint::Weak<AppWindow>,
+    on_maximized: Mutex<Option<MaximizeCallback>>,
 }
 
-pub struct WindowFrame<T: ComponentHandle + 'static> {
-    state: Arc<FrameState<T>>,
+pub struct WindowFrame {
+    state: Arc<FrameState>,
 }
 
-impl<T: ComponentHandle + 'static> Clone for WindowFrame<T> {
+impl Clone for WindowFrame {
     fn clone(&self) -> Self {
         Self {
             state: self.state.clone(),
@@ -42,11 +45,11 @@ impl<T: ComponentHandle + 'static> Clone for WindowFrame<T> {
     }
 }
 
-impl<T: ComponentHandle + 'static> WindowFrame<T> {
+impl WindowFrame {
     const BORDER_WIDTH: i32 = 8;
     const SUBCLASS_ID: usize = 1;
 
-    fn new(component: &T) -> Self {
+    fn new(component: &AppWindow) -> Self {
         Self {
             state: Arc::new(FrameState {
                 weak: component.as_weak(),
@@ -55,10 +58,9 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
         }
     }
 
-    /// 注册底层窗口最大化/还原状态改变时的通知回调
     pub fn on_maximized_changed<F>(&self, callback: F)
     where
-        F: Fn(&T, bool) + Send + Sync + 'static,
+        F: Fn(&AppWindow, bool) + Send + Sync + 'static,
     {
         let mut guard = self.state.on_maximized.lock().unwrap();
         *guard = Some(Arc::new(callback));
@@ -147,7 +149,7 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
         }
     }
 
-    fn install_custom_frame(hwnd: HWND, state: Arc<FrameState<T>>) {
+    fn install_custom_frame(hwnd: HWND, state: Arc<FrameState>) {
         let ref_data = Arc::into_raw(state) as usize;
         unsafe {
             if !SetWindowSubclass(
@@ -159,7 +161,7 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
             .as_bool()
             {
                 warn!("SetWindowSubclass (custom frame) failed");
-                let _ = Arc::from_raw(ref_data as *const FrameState<T>);
+                let _ = Arc::from_raw(ref_data as *const FrameState);
             }
         }
     }
@@ -172,8 +174,9 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
         uid_subclass: usize,
         ref_data: usize,
     ) -> LRESULT {
+        let state_ptr = ref_data as *const FrameState;
+
         match msg {
-            // 监听窗口尺寸变化
             WM_SIZE => {
                 let size_type = wparam.0 as u32;
                 let is_maximized = match size_type {
@@ -183,7 +186,6 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
                 };
 
                 if let Some(is_max) = is_maximized {
-                    let state_ptr = ref_data as *const FrameState<T>;
                     if !state_ptr.is_null() {
                         let state = unsafe { &*state_ptr };
                         let callback = state.on_maximized.lock().unwrap().clone();
@@ -198,9 +200,7 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
 
-            // 窗口销毁时清理 Subclass 与 Raw 指针，防止内存泄漏
             WM_NCDESTROY => {
-                let state_ptr = ref_data as *const FrameState<T>;
                 if !state_ptr.is_null() {
                     let _ = unsafe { Arc::from_raw(state_ptr) };
                 }
@@ -226,10 +226,6 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
             }
 
             WM_NCHITTEST => {
-                if unsafe { IsZoomed(hwnd) }.as_bool() {
-                    return LRESULT(HTCLIENT as isize);
-                }
-
                 let x = (lparam.0 & 0xFFFF) as i16 as i32;
                 let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
 
@@ -238,32 +234,104 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
                     return unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
                 }
 
-                let left = x - rect.left < Self::BORDER_WIDTH;
-                let right = rect.right - x <= Self::BORDER_WIDTH;
-                let top = y - rect.top < Self::BORDER_WIDTH;
-                let bottom = rect.bottom - y <= Self::BORDER_WIDTH;
+                // 仅在非最大化状态下才进行四周拉伸边缘判定
+                let is_zoomed = unsafe { IsZoomed(hwnd) }.as_bool();
+                if !is_zoomed {
+                    let left = x - rect.left < Self::BORDER_WIDTH;
+                    let right = rect.right - x <= Self::BORDER_WIDTH;
+                    let top = y - rect.top < Self::BORDER_WIDTH;
+                    let bottom = rect.bottom - y <= Self::BORDER_WIDTH;
 
-                let hit = if top && left {
-                    HTTOPLEFT
-                } else if top && right {
-                    HTTOPRIGHT
-                } else if bottom && left {
-                    HTBOTTOMLEFT
-                } else if bottom && right {
-                    HTBOTTOMRIGHT
-                } else if top {
-                    HTTOP
-                } else if bottom {
-                    HTBOTTOM
-                } else if left {
-                    HTLEFT
-                } else if right {
-                    HTRIGHT
-                } else {
-                    HTCLIENT
-                };
+                    if top || bottom || left || right {
+                        let hit = if top && left {
+                            HTTOPLEFT
+                        } else if top && right {
+                            HTTOPRIGHT
+                        } else if bottom && left {
+                            HTBOTTOMLEFT
+                        } else if bottom && right {
+                            HTBOTTOMRIGHT
+                        } else if top {
+                            HTTOP
+                        } else if bottom {
+                            HTBOTTOM
+                        } else if left {
+                            HTLEFT
+                        } else {
+                            HTRIGHT
+                        };
+                        return LRESULT(hit as isize);
+                    }
+                }
 
-                LRESULT(hit as isize)
+                // 无论窗口化还是最大化，均检测最大化/还原按钮判定区
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    if let Some(app) = state.weak.upgrade() {
+                        let controls = app.global::<crate::WindowControls>();
+
+                        if controls.get_show_maximize() {
+                            let dpi = unsafe { GetDpiForWindow(hwnd) };
+                            let scale = if dpi == 0 { 1.0 } else { dpi as f32 / 96.0 };
+
+                            let title_h = (controls.get_titlebar_height() * scale) as i32;
+                            let close_w = (controls.get_close_width() * scale) as i32;
+                            let max_w = (controls.get_maximize_width() * scale) as i32;
+
+                            let max_right = rect.right - close_w;
+                            let max_left = max_right - max_w;
+                            let max_top = rect.top;
+                            let max_bottom = rect.top + title_h;
+
+                            if x >= max_left && x < max_right && y >= max_top && y < max_bottom {
+                                return LRESULT(HTMAXBUTTON as isize);
+                            }
+                        }
+                    }
+                }
+
+                LRESULT(HTCLIENT as isize)
+            }
+
+            // 监听非客户区鼠标移动，主动控制 Slint 按钮悬停高亮
+            WM_NCMOUSEMOVE => {
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    if let Some(app) = state.weak.upgrade() {
+                        let controls = app.global::<crate::WindowControls>();
+                        let is_max = wparam.0 == HTMAXBUTTON as usize;
+                        if controls.get_max_hover() != is_max {
+                            controls.set_max_hover(is_max);
+                        }
+                    }
+                }
+                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+            }
+
+            // 鼠标移出非客户区或进入客户区时取消高亮
+            WM_NCMOUSELEAVE | WM_MOUSEMOVE => {
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    if let Some(app) = state.weak.upgrade() {
+                        let controls = app.global::<crate::WindowControls>();
+                        if controls.get_max_hover() {
+                            controls.set_max_hover(false);
+                        }
+                    }
+                }
+                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+            }
+
+            WM_NCLBUTTONDOWN if wparam.0 == HTMAXBUTTON as usize => LRESULT(0),
+
+            WM_NCLBUTTONUP if wparam.0 == HTMAXBUTTON as usize => {
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    if let Some(app) = state.weak.upgrade() {
+                        app.global::<crate::WindowControls>().invoke_maximize();
+                    }
+                }
+                LRESULT(0)
             }
 
             _ => unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) },
@@ -271,12 +339,12 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
     }
 }
 
-pub trait TitlebarSetup<T: ComponentHandle> {
-    fn setup_borderless(&self) -> Result<WindowFrame<T>, slint::PlatformError>;
+pub trait TitlebarSetup {
+    fn setup_borderless(&self) -> Result<WindowFrame, slint::PlatformError>;
 }
 
-impl<T: ComponentHandle + 'static> TitlebarSetup<T> for slint::Weak<T> {
-    fn setup_borderless(&self) -> Result<WindowFrame<T>, slint::PlatformError> {
+impl TitlebarSetup for slint::Weak<AppWindow> {
+    fn setup_borderless(&self) -> Result<WindowFrame, slint::PlatformError> {
         let component = self.upgrade().ok_or_else(|| {
             slint::PlatformError::Other("Failed to upgrade component handle".to_string())
         })?;

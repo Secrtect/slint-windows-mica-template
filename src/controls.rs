@@ -3,7 +3,7 @@ use crate::{AppWindow, WindowControls};
 use slint::ComponentHandle;
 
 /// 绑定无边框窗口控件（关闭、最小化、最大化、拖拽等）
-pub fn setup_window_controls(app: &AppWindow, frame: WindowFrame<AppWindow>) {
+pub fn setup_window_controls(app: &AppWindow, frame: WindowFrame) {
     let controls = app.global::<WindowControls>();
 
     // 1. 初始化 Slint 中的 maximized 状态

@@ -2,6 +2,9 @@
 # will have compiled files and executables
 /target/
 
+# IDE & Editor settings
+.vscode/
+
 # Alternative VCS systems
 /.jj/
 /.hg/
