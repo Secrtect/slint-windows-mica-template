@@ -45,4 +45,15 @@ Special thanks to [@Drew-Chase](https://github.com/Drew-Chase) for creating [sli
 2. **Remember to update `name = "..."` in `Cargo.toml` to your own project name!**
 3. Run `cargo run`.
 
+---
+
+## 📦 Releases & False Positive Warnings
+
+This is also my first time setting up a CI/CD pipeline to automatically build and publish `.exe` binaries.
+
+Because this project is newly released and does not carry an expensive digital code-signing certificate, Windows Defender or other antivirus tools will likely flag the pre-compiled `.exe` in Releases as a false positive.
+
+* If you need to test the pre-compiled `.exe` from Releases, you might need to temporarily disable Defender's Real-time Protection or manually choose to allow/keep the file.
+* **Strongly Recommended**: Simply clone this repository and execute `cargo run` locally (local builds will never trigger false positive warnings).
+
 Hope this small template helps you out!

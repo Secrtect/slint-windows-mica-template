@@ -37,6 +37,6 @@ jobs:
           name: "Latest Build (Nightly)"
           tag_name: "nightly"
           prerelease: true
-          files: slint-windows-mica-template-windows.zip
+          files: slint-windows-mica-template.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
