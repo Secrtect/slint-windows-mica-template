@@ -20,10 +20,10 @@ use windows::Win32::UI::Controls::MARGINS;
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTLEFT, HTMAXBUTTON, HTRIGHT,
-    HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS, SIZE_MAXIMIZED, SIZE_RESTORED,
-    WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP,
-    WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
+    GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTCLOSE, HTLEFT, HTMAXBUTTON,
+    HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS,
+    SIZE_MAXIMIZED, SIZE_RESTORED, WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST,
+    WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
 };
 
 type MaximizeCallback = Arc<dyn Fn(&AppWindow, bool) + Send + Sync + 'static>;
@@ -234,7 +234,7 @@ impl WindowFrame {
                     return unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) };
                 }
 
-                // 仅在非最大化状态下才进行四周拉伸边缘判定
+                // 非最大化时判定拉伸边缘
                 let is_zoomed = unsafe { IsZoomed(hwnd) }.as_bool();
                 if !is_zoomed {
                     let left = x - rect.left < Self::BORDER_WIDTH;
@@ -264,27 +264,50 @@ impl WindowFrame {
                     }
                 }
 
-                // 无论窗口化还是最大化，均检测最大化/还原按钮判定区
+                // 判定三大标题栏控制按钮（从右至左：关闭 -> 最大化 -> 最小化）
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
                     if let Some(app) = state.weak.upgrade() {
                         let controls = app.global::<crate::WindowControls>();
+                        let dpi = unsafe { GetDpiForWindow(hwnd) };
+                        let scale = if dpi == 0 { 1.0 } else { dpi as f32 / 96.0 };
 
-                        if controls.get_show_maximize() {
-                            let dpi = unsafe { GetDpiForWindow(hwnd) };
-                            let scale = if dpi == 0 { 1.0 } else { dpi as f32 / 96.0 };
+                        let title_h = (controls.get_titlebar_height() * scale) as i32;
+                        let close_w = (controls.get_close_width() * scale) as i32;
+                        let max_w = (controls.get_maximize_width() * scale) as i32;
+                        let min_w = (controls.get_minimize_width() * scale) as i32;
 
-                            let title_h = (controls.get_titlebar_height() * scale) as i32;
-                            let close_w = (controls.get_close_width() * scale) as i32;
-                            let max_w = (controls.get_maximize_width() * scale) as i32;
+                        let btn_top = rect.top;
+                        let btn_bottom = rect.top + title_h;
 
-                            let max_right = rect.right - close_w;
-                            let max_left = max_right - max_w;
-                            let max_top = rect.top;
-                            let max_bottom = rect.top + title_h;
+                        if y >= btn_top && y < btn_bottom {
+                            // 1. 关闭按钮判断
+                            let close_left = rect.right - close_w;
+                            let close_right = rect.right;
+                            if x >= close_left && x < close_right {
+                                return LRESULT(HTCLOSE as isize);
+                            }
 
-                            if x >= max_left && x < max_right && y >= max_top && y < max_bottom {
+                            // 2. 最大化按钮判断
+                            let max_left = close_left - max_w;
+                            let max_right = close_left;
+                            if controls.get_show_maximize() && x >= max_left && x < max_right {
                                 return LRESULT(HTMAXBUTTON as isize);
+                            }
+
+                            // 3. 最小化按钮判断
+                            let min_left = if controls.get_show_maximize() {
+                                max_left - min_w
+                            } else {
+                                close_left - min_w
+                            };
+                            let min_right = if controls.get_show_maximize() {
+                                max_left
+                            } else {
+                                close_left
+                            };
+                            if x >= min_left && x < min_right {
+                                return LRESULT(HTMINBUTTON as isize);
                             }
                         }
                     }
@@ -293,42 +316,73 @@ impl WindowFrame {
                 LRESULT(HTCLIENT as isize)
             }
 
-            // 监听非客户区鼠标移动，主动控制 Slint 按钮悬停高亮
+            // 实时处理非客户区 Hover 变色联动
             WM_NCMOUSEMOVE => {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
                     if let Some(app) = state.weak.upgrade() {
                         let controls = app.global::<crate::WindowControls>();
-                        let is_max = wparam.0 == HTMAXBUTTON as usize;
+                        let hit = wparam.0 as usize;
+
+                        let is_min = hit == HTMINBUTTON as usize;
+                        let is_max = hit == HTMAXBUTTON as usize;
+                        let is_close = hit == HTCLOSE as usize;
+
+                        if controls.get_min_hover() != is_min {
+                            controls.set_min_hover(is_min);
+                        }
                         if controls.get_max_hover() != is_max {
                             controls.set_max_hover(is_max);
+                        }
+                        if controls.get_close_hover() != is_close {
+                            controls.set_close_hover(is_close);
                         }
                     }
                 }
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
 
-            // 鼠标移出非客户区或进入客户区时取消高亮
+            // 移出非客户区重置状态
             WM_NCMOUSELEAVE | WM_MOUSEMOVE => {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
                     if let Some(app) = state.weak.upgrade() {
                         let controls = app.global::<crate::WindowControls>();
+                        if controls.get_min_hover() {
+                            controls.set_min_hover(false);
+                        }
                         if controls.get_max_hover() {
                             controls.set_max_hover(false);
+                        }
+                        if controls.get_close_hover() {
+                            controls.set_close_hover(false);
                         }
                     }
                 }
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
 
-            WM_NCLBUTTONDOWN if wparam.0 == HTMAXBUTTON as usize => LRESULT(0),
+            // 拦截 Win32 默认点击按压重绘
+            WM_NCLBUTTONDOWN
+                if wparam.0 == HTMINBUTTON as usize
+                    || wparam.0 == HTMAXBUTTON as usize
+                    || wparam.0 == HTCLOSE as usize =>
+            {
+                LRESULT(0)
+            }
 
-            WM_NCLBUTTONUP if wparam.0 == HTMAXBUTTON as usize => {
+            // 响应三个按钮的逻辑点击
+            WM_NCLBUTTONUP => {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
                     if let Some(app) = state.weak.upgrade() {
-                        app.global::<crate::WindowControls>().invoke_maximize();
+                        let controls = app.global::<crate::WindowControls>();
+                        match wparam.0 as usize {
+                            x if x == HTMINBUTTON as usize => controls.invoke_minimize(),
+                            x if x == HTMAXBUTTON as usize => controls.invoke_maximize(),
+                            x if x == HTCLOSE as usize => controls.invoke_close(),
+                            _ => {}
+                        }
                     }
                 }
                 LRESULT(0)

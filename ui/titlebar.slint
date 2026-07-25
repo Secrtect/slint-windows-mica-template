@@ -1,3 +1,5 @@
+import { Palette } from "std-widgets.slint";
+
 export global WindowControls {
     callback minimize();
     callback maximize();
@@ -7,19 +9,26 @@ export global WindowControls {
 
     in-out property <bool> maximized: false;
 
-    // 暴露配置给 Rust
+    // 暴露尺寸配置给 Rust 消息判定
     in-out property <bool> show-maximize: true;
     in-out property <length> titlebar-height: 32px;
     in-out property <length> close-width: 46px;
     in-out property <length> maximize-width: 46px;
+    in-out property <length> minimize-width: 46px;
 
-    // 新增：由 Win32 非客户区消息驱动的悬停状态
+    // 由 Win32 非客户区消息驱动的三个按钮悬停状态
+    in-out property <bool> min-hover: false;
     in-out property <bool> max-hover: false;
+    in-out property <bool> close-hover: false;
 }
 
 export component Titlebar inherits Rectangle {
     in property <string> title: "Application";
     in property <image> icon;
+
+    // 深色模式纯白 (#ffffff)，浅色模式淡灰 (#cccccc)
+    private property <color> foreground-color: Palette.color-scheme == ColorScheme.dark ? #ffffff : #cccccc;
+    private property <color> btn-hover-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff1a : #80808030;
 
     height: WindowControls.titlebar-height;
     background: transparent;
@@ -39,6 +48,7 @@ export component Titlebar inherits Rectangle {
             double-clicked => {
                 WindowControls.double-click();
             }
+
             HorizontalLayout {
                 padding-left: 12px;
                 padding-right: 8px;
@@ -61,9 +71,10 @@ export component Titlebar inherits Rectangle {
             }
         }
 
+        // 最小化按钮
         minimize-btn := Rectangle {
-            width: 46px;
-            background: minimize-touch.has-hover ? #80808030 : transparent;
+            width: WindowControls.minimize-width;
+            background: (minimize-touch.has-hover || WindowControls.min-hover) ? root.btn-hover-bg : transparent;
             animate background { duration: 100ms; }
 
             minimize-touch := TouchArea {
@@ -73,85 +84,126 @@ export component Titlebar inherits Rectangle {
             Rectangle {
                 width: 10px;
                 height: 1px;
-                background: #cccccc;
+                background: root.foreground-color;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
             }
         }
 
+        // 最大化 / 还原按钮
         if WindowControls.show-maximize: maximize-btn := Rectangle {
             width: WindowControls.maximize-width;
-            // 同时响应 Slint 自身 hover 与 Win32 非客户区 hover
-            background: (maximize-touch.has-hover || WindowControls.max-hover) ? #80808030 : transparent;
+            background: (maximize-touch.has-hover || WindowControls.max-hover) ? root.btn-hover-bg : transparent;
             animate background { duration: 100ms; }
 
             maximize-touch := TouchArea {
                 clicked => { WindowControls.maximize(); }
             }
 
+            // 未最大化：标准微圆角矩形
             if !WindowControls.maximized: Rectangle {
                 width: 10px;
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                border-width: 1px;
-                border-color: #cccccc;
+                border-width: 1.2px;
+                border-color: root.foreground-color;
+                border-radius: 1.5px;
                 background: transparent;
             }
 
-            if WindowControls.maximized: Rectangle {
+            // 已最大化（还原）：标准 Windows 干净的双框（纯 L 型折线后框）
+            if WindowControls.maximized: Path {
                 width: 10px;
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
+                stroke: root.foreground-color;
+                stroke-width: 1.2px;
 
-                Rectangle {
-                    x: 0px;
-                    y: 2px;
-                    width: 8px;
-                    height: 8px;
-                    border-width: 1px;
-                    border-color: #cccccc;
-                    background: transparent;
+                // --- 1. 前方圆角主框 (8x8) ---
+                MoveTo {
+                    x: 1.5;
+                    y: 2;
                 }
 
-                Rectangle {
-                    x: 2px;
-                    y: 0px;
-                    width: 8px;
-                    height: 1px;
-                    background: #cccccc;
+                LineTo {
+                    x: 6.5;
+                    y: 2;
                 }
 
-                Rectangle {
-                    x: 9px;
-                    y: 0px;
-                    width: 1px;
-                    height: 8px;
-                    background: #cccccc;
+                QuadraticTo {
+                    control-x: 8;
+                    control-y: 2;
+                    x: 8;
+                    y: 3.5;
                 }
 
-                Rectangle {
-                    x: 2px;
-                    y: 0px;
-                    width: 1px;
-                    height: 2px;
-                    background: #cccccc;
+                LineTo {
+                    x: 8;
+                    y: 8.5;
                 }
 
-                Rectangle {
-                    x: 7px;
-                    y: 7px;
-                    width: 2px;
-                    height: 1px;
-                    background: #cccccc;
+                QuadraticTo {
+                    control-x: 8;
+                    control-y: 10;
+                    x: 6.5;
+                    y: 10;
+                }
+
+                LineTo {
+                    x: 1.5;
+                    y: 10;
+                }
+
+                QuadraticTo {
+                    control-x: 0;
+                    control-y: 10;
+                    x: 0;
+                    y: 8.5;
+                }
+
+                LineTo {
+                    x: 0;
+                    y: 3.5;
+                }
+
+                QuadraticTo {
+                    control-x: 0;
+                    control-y: 2;
+                    x: 1.5;
+                    y: 2;
+                }
+
+                // --- 2. 后方 L 型折线（100% & 175% 高仿 1:1 黄金比例） ---
+MoveTo {
+                    x: 2.8;       // 起点略微偏左，保证顶部横线饱满
+    y: 0;
+                }
+
+                LineTo {
+                    x: 8.2;       // 8.2 开始转弯
+    y: 0;
+                }
+
+                QuadraticTo {     // 弧度半径 1.8px（介于死板和过圆之间，刚好匹配 Win11 圆角）
+    control-x: 10;
+                    control-y: 0;
+                    x: 10;
+                    y: 1.8;
+                }
+
+                LineTo {
+                    x: 10;
+                    y: 7.5;       // 从 6.5 延伸回 7.5，竖线长度刚好拉满且不超界
                 }
             }
         }
 
+        // 关闭按钮
         close-btn := Rectangle {
             width: WindowControls.close-width;
-            background: close-touch.has-hover ? #c42b1c : transparent;
+            background: (close-touch.has-hover || WindowControls.close-hover) ? #c42b1c : transparent;
             animate background { duration: 100ms; }
 
             close-touch := TouchArea {
@@ -163,7 +215,7 @@ export component Titlebar inherits Rectangle {
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                stroke: close-touch.has-hover ? #ffffff : #cccccc;
+                stroke: (close-touch.has-hover || WindowControls.close-hover) ? #ffffff : root.foreground-color;
                 stroke-width: 1px;
                 animate stroke { duration: 100ms; }
 
