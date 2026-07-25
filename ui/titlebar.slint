@@ -83,6 +83,7 @@ export component Titlebar inherits Rectangle {
 
             Rectangle {
                 width: 10px;
+                // 1px 逻辑像素：100% = 1px，175% = 1.75px，与 Windows 原生字形缩放规律一致
                 height: 1px;
                 background: root.foreground-color;
                 x: (parent.width - self.width) / 2;
@@ -100,103 +101,58 @@ export component Titlebar inherits Rectangle {
                 clicked => { WindowControls.maximize(); }
             }
 
-            // 未最大化：标准微圆角矩形
-            if !WindowControls.maximized: Rectangle {
+            // 未最大化：圆角矩形（用 Path 绘制，与还原图标同一渲染流水线）
+            // Rectangle 的 border 和 Path 的 stroke 在高 DPI 下抗锯齿算法不同，
+            // Path 贝塞尔曲线更接近原生字形渲染效果
+            if !WindowControls.maximized: Path {
                 width: 10px;
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                border-width: 1.2px;
-                border-color: root.foreground-color;
-                border-radius: 1.5px;
-                background: transparent;
+                stroke: root.foreground-color;
+                stroke-width: 1px;
+
+                // 圆角矩形，圆角半径 1.5px（与还原图标前框一致）
+                MoveTo { x: 1.5; y: 0; }
+                LineTo { x: 8.5; y: 0; }
+                QuadraticTo { control-x: 10; control-y: 0; x: 10; y: 1.5; }
+                LineTo { x: 10; y: 8.5; }
+                QuadraticTo { control-x: 10; control-y: 10; x: 8.5; y: 10; }
+                LineTo { x: 1.5; y: 10; }
+                QuadraticTo { control-x: 0; control-y: 10; x: 0; y: 8.5; }
+                LineTo { x: 0; y: 1.5; }
+                QuadraticTo { control-x: 0; control-y: 0; x: 1.5; y: 0; }
             }
 
-            // 已最大化（还原）：标准 Windows 干净的双框（纯 L 型折线后框）
+            // 已最大化（还原）：标准 Windows 双框
+            // 前框（8×8 圆角矩形）+ 后框（L 型折线，仅画顶边和右边）
             if WindowControls.maximized: Path {
                 width: 10px;
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
                 stroke: root.foreground-color;
-                stroke-width: 1.2px;
+                // 1px 逻辑像素：100% = 1px，175% = 1.75px（原 1.2px = 2.1px 过粗有毛边）
+                stroke-width: 1px;
 
-                // --- 1. 前方圆角主框 (8x8) ---
-                MoveTo {
-                    x: 1.5;
-                    y: 2;
-                }
+                // --- 1. 前方圆角主框：(0,2)→(8,10)，圆角半径 1.5 ---
+                MoveTo { x: 1.5; y: 2; }
+                LineTo { x: 6.5; y: 2; }
+                QuadraticTo { control-x: 8; control-y: 2; x: 8; y: 3.5; }
+                LineTo { x: 8; y: 8.5; }
+                QuadraticTo { control-x: 8; control-y: 10; x: 6.5; y: 10; }
+                LineTo { x: 1.5; y: 10; }
+                QuadraticTo { control-x: 0; control-y: 10; x: 0; y: 8.5; }
+                LineTo { x: 0; y: 3.5; }
+                QuadraticTo { control-x: 0; control-y: 2; x: 1.5; y: 2; }
 
-                LineTo {
-                    x: 6.5;
-                    y: 2;
-                }
-
-                QuadraticTo {
-                    control-x: 8;
-                    control-y: 2;
-                    x: 8;
-                    y: 3.5;
-                }
-
-                LineTo {
-                    x: 8;
-                    y: 8.5;
-                }
-
-                QuadraticTo {
-                    control-x: 8;
-                    control-y: 10;
-                    x: 6.5;
-                    y: 10;
-                }
-
-                LineTo {
-                    x: 1.5;
-                    y: 10;
-                }
-
-                QuadraticTo {
-                    control-x: 0;
-                    control-y: 10;
-                    x: 0;
-                    y: 8.5;
-                }
-
-                LineTo {
-                    x: 0;
-                    y: 3.5;
-                }
-
-                QuadraticTo {
-                    control-x: 0;
-                    control-y: 2;
-                    x: 1.5;
-                    y: 2;
-                }
-
-                // --- 2. 后方 L 型折线（100% & 175% 高仿 1:1 黄金比例） ---
-MoveTo {
-                    x: 2.8;       // 起点略微偏左，保证顶部横线饱满
-    y: 0;
-                }
-
-                LineTo {
-                    x: 8.2;       // 8.2 开始转弯
-    y: 0;
-                }
-
-                QuadraticTo {     // 弧度半径 1.8px（介于死板和过圆之间，刚好匹配 Win11 圆角）
-    control-x: 10;
-                    control-y: 0;
-                    x: 10;
-                    y: 1.8;
-                }
-
-                LineTo {
-                    x: 10;
-                    y: 7.5;       // 从 6.5 延伸回 7.5，竖线长度刚好拉满且不超界
-                }
+                // --- 2. 后方 L 型折线：(2,0)→(10,0) 顶边 + (10,0)→(10,7.5) 右边 ---
+                // 与前框同为 1.5px 圆角，视觉上两框完全对称
+                // x: 2.5 = 左端让出半个 stroke 宽度，避免与前框左边重叠
+                MoveTo { x: 2.5; y: 0; }
+                LineTo { x: 8.5; y: 0; }
+                QuadraticTo { control-x: 10; control-y: 0; x: 10; y: 1.5; }
+                LineTo { x: 10; y: 7.5; }
             }
         }
 
