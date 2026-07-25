@@ -34,9 +34,6 @@ Special thanks to [@Drew-Chase](https://github.com/Drew-Chase) for creating [sli
 * **Fix**: Change `OpenGL GDI compatibility` to **"Prefer compatibility"**.
 * **Default Setting**: Since I don't have AMD or Intel GPUs on hand for testing, the default rendering backend is set to **`software`** to guarantee out-of-the-box compatibility for everyone.
 
-### 2. Win11 Snap Layouts
-* Hovering over the maximize button should ideally pop up the Win11 Snap Layouts menu. As a Slint beginner (￣﹏￣；), I haven't tackled this yet, but I'll explore it when I get time!
-
 ---
 
 ## 🚀 How to Use
