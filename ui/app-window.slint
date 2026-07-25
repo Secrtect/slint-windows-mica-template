@@ -1,0 +1,235 @@
+import {
+    Button,
+    CheckBox,
+    ComboBox,
+    LineEdit,
+    Slider,
+    SpinBox,
+    Switch,
+    TextEdit,
+    VerticalBox,
+    HorizontalBox,
+    GridBox,
+    ScrollView,
+    TabWidget,
+    StandardListView,
+    StandardTableView,
+    GroupBox,
+} from "std-widgets.slint";
+
+// 新增：引入系统调色板单例
+import { Palette } from "std-widgets.slint";
+// 1. 导入我们写的无边框组件
+import { Titlebar, WindowControls } from "./titlebar.slint";
+
+// 2. 导出 WindowControls 使得 Rust 端可以访问它
+export { WindowControls }
+export component AppWindow inherits Window {
+    // ==================== 导出初始宽高属性 ====================
+    in-out property <length> init-width: 1200px;
+    in-out property <length> init-height: 700px;
+
+    // 将窗口的首选尺寸绑定到上述属性
+    preferred-width: init-width;
+    preferred-height: init-height;
+    // ============================================================
+    // 依然保留这个让 Rust 控制的变量
+    in-out property <bool> is-mica-active: false;
+
+    // 修改：如果 Mica 成功开启则透明；如果失败，则使用系统自带的深浅色背景色 (Palette.background)
+    background: self.is-mica-active ? transparent : Palette.background;
+
+    title: "Slint 标准组件全家桶";
+
+    // 3. 开启无边框，并限制最小缩放尺寸
+    no-frame: true;
+    min-width: 600px;
+    min-height: 500px;
+
+    // 状态数据管理
+    in-out property <string> input-text: "";
+    in-out property <float> slider-val: 50.0;
+    in-out property <int> spin-val: 10;
+    in-out property <bool> switch-status: false;
+
+    // 列表数据模型
+    private property <[StandardListViewItem]> list-data: [{ text: "选项 A" }, { text: "选项 B" }, { text: "选项 C" }];
+    // 表格数据模型
+    private property <[[StandardListViewItem]]> table-rows: [
+        [{ text: "1" }, { text: "张三" }, { text: "在线" }],
+        [{ text: "2" }, { text: "李四" }, { text: "离线" }],
+        [{ text: "3" }, { text: "王五" }, { text: "忙碌" }]
+    ];
+
+    // 4. 用垂直布局将 Titlebar 和原内容结合
+    VerticalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // 放置自定义标题栏
+        Titlebar {
+            title: "Slint Application";
+        }
+
+        // 选项卡组件，会自动撑满剩下的空间
+        TabWidget {
+            // --- 第一个标签页：基础输入与控制组件 ---
+            Tab {
+                title: "基础控件";
+                ScrollView {
+                    VerticalBox {
+                        padding: 20px;
+                        spacing: 20px;
+                        alignment: start;
+
+                        // 1. GroupBox - 分组框组件
+                        GroupBox {
+                            title: "按钮与开关 (Buttons & Toggles)";
+                            HorizontalBox {
+                                spacing: 15px;
+                                alignment: start;
+
+                                Button {
+                                    text: "点击测试";
+                                    primary: true;
+                                    clicked => { self.text = "已点击!"; }
+                                }
+
+                                CheckBox {
+                                    text: "同意条款";
+                                    checked: true;
+                                }
+
+                                Switch {
+                                    text: "启用通知";
+                                    checked <=> switch-status;
+                                }
+                            }
+                        }
+
+                        // 2. GroupBox - 输入类组件
+                        GroupBox {
+                            title: "文本输入 (Inputs)";
+                            VerticalBox {
+                                spacing: 12px;
+                                HorizontalBox {
+                                    Text {
+                                        text: "单行输入: ";
+                                        vertical-alignment: center;
+                                    }
+
+                                    LineEdit {
+                                        placeholder-text: "请输入文字...";
+                                        text <=> input-text;
+                                    }
+                                }
+
+                                HorizontalBox {
+                                    Text {
+                                        text: "多行输入: ";
+                                        vertical-alignment: top;
+                                    }
+
+                                    TextEdit {
+                                        height: 80px;
+                                        text: "这是多行文本组件的默认内容...\n支持换行。";
+                                    }
+                                }
+                            }
+                        }
+
+                        // 3. GroupBox - 数值调节组件
+                        GroupBox {
+                            title: "数值与选择 (Selectors)";
+                            GridBox {
+                                spacing: 15px;
+                                Row {
+                                    Text {
+                                        text: "滑块调节: ";
+                                        vertical-alignment: center;
+                                    }
+
+                                    Slider {
+                                        minimum: 0.0;
+                                        maximum: 100.0;
+                                        value <=> slider-val;
+                                    }
+
+                                    Text {
+                                        text: "\{Math.round(slider-val)}";
+                                        vertical-alignment: center;
+                                    }
+                                }
+
+                                Row {
+                                    Text {
+                                        text: "数字微调: ";
+                                        vertical-alignment: center;
+                                    }
+
+                                    SpinBox {
+                                        minimum: 0;
+                                        maximum: 100;
+                                        value <=> spin-val;
+                                    }
+
+                                    Rectangle { }
+                                }
+
+                                Row {
+                                    Text {
+                                        text: "下拉选择: ";
+                                        vertical-alignment: center;
+                                    }
+
+                                    ComboBox {
+                                        model: ["红茶", "绿茶", "咖啡", "果汁"];
+                                        current-value: "绿茶";
+                                    }
+
+                                    Rectangle { }
+                                }
+                            }
+                        }
+                    }
+                }
+            }
+
+            // --- 第二个标签页：高级列表与数据视图 ---
+            Tab {
+                title: "高级视图";
+                HorizontalBox {
+                    padding: 20px;
+                    spacing: 20px;
+
+                    VerticalBox {
+                        Text {
+                            text: "标准列表 (StandardListView)";
+                            font-weight: 700;
+                        }
+
+                        StandardListView {
+                            model: list-data;
+                        }
+                    }
+
+                    VerticalBox {
+                        Text {
+                            text: "标准表格 (StandardTableView)";
+                            font-weight: 700;
+                        }
+
+                        StandardTableView {
+                            columns: [
+                                { title: "ID", width: 50px },
+                                { title: "姓名", width: 120px },
+                                { title: "状态", width: 100px }
+                            ];
+                            rows: table-rows;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

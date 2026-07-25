@@ -1,0 +1,56 @@
+[package]
+name = "slint-windows-mica-template"
+version = "0.1.0"
+edition = "2024"
+
+# 务必加上 default-features = false，防止它们把 OpenGL 特性加回来
+[dependencies]
+slint = { version = "1.17.1", default-features = false, features = [
+  "backend-winit",
+  "compat-1-2",
+  "raw-window-handle-06",
+  "renderer-software",
+] }
+
+# 1. 为本地的 src/borderless.rs 补充这三个依赖
+i-slint-backend-winit = { version = "1.17.1" }
+winit = { version = "0.30" }
+tracing = "0.1"
+
+[target.'cfg(windows)'.dependencies]
+window-vibrancy = "0.5"
+
+# main.rs 中 GetDpiForSystem 需要 Win32_UI_HiDpi 特性
+windows-sys = { version = "0.52", features = [
+  "Win32_UI_WindowsAndMessaging",
+  "Win32_UI_HiDpi",
+  "Win32_Foundation",
+] }
+
+# 2. 为 src/borderless.rs 补充 windows crate（注意：它与上面的 windows-sys 是两个独立的库）
+windows = { version = "0.62", features = [
+  "Win32_Foundation",
+  "Win32_Graphics_Dwm",
+  "Win32_UI_Controls",
+  "Win32_UI_Shell",
+  "Win32_UI_WindowsAndMessaging",
+] }
+
+[build-dependencies]
+slint-build = "1.17.1"
+
+[profile.release]
+opt-level = "z"   # 极致大小优化
+lto = true        # 全局 LTO
+codegen-units = 1 # 限制单元
+panic = "abort"   # 移除栈展开元数据
+strip = true      # 剥离符号
+
+[profile.dev]
+opt-level = 0
+debug = 1
+panic = "unwind"
+split-debuginfo = "unpacked"
+
+[profile.dev.package."*"]
+opt-level = 2
