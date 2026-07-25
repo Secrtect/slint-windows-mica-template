@@ -1,0 +1,41 @@
+name: Latest Release
+
+# 当推送到 main 分支时自动触发
+on:
+  push:
+    branches: [ "main" ]
+
+jobs:
+  build-and-release:
+    runs-on: windows-latest
+
+    steps:
+      # 1. 拉取最新的仓库代码
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      # 2. 安装 Rust 稳定版环境
+      - name: Install Rust toolchain
+        uses: dtolnay/rust-toolchain@stable
+
+      # 3. 编译 Release 版本
+      - name: Build
+        run: cargo build --release
+
+      # 4. 打包二进制文件为 zip 压缩包
+      - name: Package Binary
+        shell: powershell
+        run: |
+          $APP_NAME = "slint-windows-mica-template"
+          Compress-Archive -Path "target/release/$APP_NAME.exe" -DestinationPath "$APP_NAME-windows.zip"
+
+      # 5. 自动创建或覆盖名为 "nightly" 的 Release
+      - name: Update Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: "Latest Build (Nightly)"
+          tag_name: "nightly"
+          prerelease: true
+          files: slint-windows-mica-template-windows.zip
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
