@@ -9,14 +9,10 @@ use std::mem::size_of;
 use std::sync::{Arc, Mutex};
 use tracing::warn;
 use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows::Win32::Graphics::Dwm::{
-    DWM_WINDOW_CORNER_PREFERENCE, DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_ROUND,
-    DwmExtendFrameIntoClientArea, DwmSetWindowAttribute,
-};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
 };
-use windows::Win32::UI::Controls::MARGINS;
+use winit::platform::windows::{CornerPreference, WindowExtWindows};
 use windows::Win32::UI::HiDpi::GetDpiForWindow;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -146,12 +142,10 @@ impl WindowFrame {
                 warn!("Failed to extract HWND from winit window");
                 return;
             };
-            // 应用圆角效果
-            // Apply rounded corners
-            Self::apply_rounded_corners(hwnd);
-            // 应用阴影效果
-            // Apply drop shadow
-            Self::apply_drop_shadow(hwnd);
+            // 圆角 + 阴影直接用 winit 封装好的 API，无需手写 DWM FFI
+            // Rounded corners and shadow via winit's built-in Windows API wrappers
+            window.set_corner_preference(CornerPreference::Round);
+            window.set_undecorated_shadow(true);
             // 安装自定义窗口过程（子类化）
             // Install custom window procedure (subclassing)
             Self::install_custom_frame(hwnd, self.state.clone());
@@ -167,40 +161,6 @@ impl WindowFrame {
         match handle.as_raw() {
             RawWindowHandle::Win32(h) => Some(HWND(h.hwnd.get() as *mut c_void)),
             _ => None,
-        }
-    }
-
-    /// 通过 DWM API 应用圆角效果到窗口
-    /// Applies rounded corners to the window via DWM API
-    fn apply_rounded_corners(hwnd: HWND) {
-        let preference = DWMWCP_ROUND;
-        unsafe {
-            if let Err(e) = DwmSetWindowAttribute(
-                hwnd,
-                DWMWA_WINDOW_CORNER_PREFERENCE,
-                &preference as *const DWM_WINDOW_CORNER_PREFERENCE as *const c_void,
-                size_of::<DWM_WINDOW_CORNER_PREFERENCE>() as u32,
-            ) {
-                warn!("DwmSetWindowAttribute (rounded corners) failed: {e}");
-            }
-        }
-    }
-
-    /// 通过 DWM API 应用阴影效果到窗口
-    /// 使用 DwmExtendFrameIntoClientArea 将框架扩展到客户区来触发阴影
-    /// Applies drop shadow to the window via DWM API
-    /// Uses DwmExtendFrameIntoClientArea to extend the frame into the client area to trigger the shadow
-    fn apply_drop_shadow(hwnd: HWND) {
-        let margins = MARGINS {
-            cxLeftWidth: 0,
-            cxRightWidth: 0,
-            cyTopHeight: 0,
-            cyBottomHeight: 1, // 底部扩展1像素以触发阴影 / Extend 1px at bottom to trigger shadow
-        };
-        unsafe {
-            if let Err(e) = DwmExtendFrameIntoClientArea(hwnd, &margins) {
-                warn!("DwmExtendFrameIntoClientArea (drop shadow) failed: {e}");
-            }
         }
     }
 

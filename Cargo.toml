@@ -30,8 +30,8 @@ windows-sys = { version = "0.52", features = [
 # 2. 为 src/borderless.rs 补充 windows crate（注意：它与上面的 windows-sys 是两个独立的库）
 windows = { version = "0.62", features = [
   "Win32_Foundation",
-  "Win32_Graphics_Dwm",
-  "Win32_UI_Controls",
+  "Win32_Graphics_Gdi",
+  "Win32_UI_HiDpi",
   "Win32_UI_Input_KeyboardAndMouse",
   "Win32_UI_Shell",
   "Win32_UI_WindowsAndMessaging",
