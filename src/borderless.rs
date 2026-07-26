@@ -455,50 +455,64 @@ impl WindowFrame {
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
 
-            // 鼠标离开非客户区或进入客户区：重置按钮悬停状态
-            // Mouse leaves non-client area or enters client area: reset button hover states
+            // 鼠标离开非客户区或进入客户区：重置 hover 和 pressed 状态
+            // Mouse leaves non-client area or enters client area: reset hover and pressed states
             WM_NCMOUSELEAVE | WM_MOUSEMOVE => {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
+                    // 清理可能残留的按下监测标记
+                    // Clear any remaining press tracking mark
+                    *state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()) = None;
+
                     if let Some(app) = state.weak.upgrade() {
                         let controls = app.global::<crate::WindowControls>();
-                        // 重置所有按钮的悬停状态
-                        // Reset all button hover states
-                        if controls.get_min_hover() {
-                            controls.set_min_hover(false);
-                        }
-                        if controls.get_max_hover() {
-                            controls.set_max_hover(false);
-                        }
-                        if controls.get_close_hover() {
-                            controls.set_close_hover(false);
-                        }
+                        // 重置 hover 状态
+                        if controls.get_min_hover() { controls.set_min_hover(false); }
+                        if controls.get_max_hover() { controls.set_max_hover(false); }
+                        if controls.get_close_hover() { controls.set_close_hover(false); }
+                        // 重置 pressed 状态（防止按住按钮后拖出窗口导致 pressed 永久残留）
+                        // Reset pressed state (prevent stuck pressed when holding button and dragging out of window)
+                        if controls.get_min_pressed() { controls.set_min_pressed(false); }
+                        if controls.get_max_pressed() { controls.set_max_pressed(false); }
+                        if controls.get_close_pressed() { controls.set_close_pressed(false); }
                     }
-                    // 清理可能残留的按下状态（如按住按钮拖出窗口后松手）
-                    // Clean up any remaining pressed state (e.g., when button is held and dragged out of the window)
-                    *state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()) = None;
                 }
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
 
-            // 拦截标题栏按钮的按下消息：记录按下区域，阻止默认视觉效果
-            // Intercept titlebar button press messages: record press area, prevent default visual effects
+            // 拦截标题栏按钮的按下消息：记录按下区域，阻止默认视觉效果，同时驱动 Slint Pressed 状态
+            // Intercept titlebar button press: record press area, prevent default visuals, drive Slint pressed state
             WM_NCLBUTTONDOWN
                 if wparam.0 == HTMINBUTTON as usize
                     || wparam.0 == HTMAXBUTTON as usize
                     || wparam.0 == HTCLOSE as usize =>
             {
-                // Bug 4 修复：记录按下时的命中区域，用于松手时的区域一致性校验
-                // Bug 4 Fix: Record the hit area when pressed, used for area consistency verification on release
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
+                    // 记录按下区域（用于松手区域一致性校验）
+                    // Record press area (for release area consistency check)
                     *state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()) = Some(wparam.0);
+
+                    // 通知 Slint UI 进入按下状态
+                    // Notify Slint UI to enter pressed state
+                    let hit = wparam.0;
+                    let weak = state.weak.clone();
+                    let _ = weak.upgrade_in_event_loop(move |app| {
+                        let controls = app.global::<crate::WindowControls>();
+                        if hit == HTMINBUTTON as usize {
+                            controls.set_min_pressed(true);
+                        } else if hit == HTMAXBUTTON as usize {
+                            controls.set_max_pressed(true);
+                        } else if hit == HTCLOSE as usize {
+                            controls.set_close_pressed(true);
+                        }
+                    });
                 }
                 LRESULT(0)
             }
 
-            // 处理标题栏按钮的释放消息：仅当按下与松开在同一按钮时才执行操作
-            // Handle titlebar button release messages: only execute action when press and release are on the same button
+            // 处理标题栏按钮的释放消息：清除 pressed 状态，并仅当按下与松开在同一按钮时才执行操作
+            // Handle titlebar button release: clear pressed state, execute action only if press+release on same button
             WM_NCLBUTTONUP => {
                 let hit = wparam.0 as usize;
                 let is_ctrl_button = hit == HTMINBUTTON as usize
@@ -508,16 +522,27 @@ impl WindowFrame {
                 if is_ctrl_button {
                     if !state_ptr.is_null() {
                         let state = unsafe { &*state_ptr };
-                        // Bug 4 修复：取出按下时的区域，与松开区域比较，防止跨按钮滑动误触
-                        // Bug 4 Fix: Retrieve the pressed area and compare with release area to prevent cross-button slide misclicks
                         let pressed = state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()).take();
+
+                        // 先清除 Slint 中的 pressed 状态
+                        // First clear the pressed state in Slint
+                        let weak = state.weak.clone();
+                        let _ = weak.upgrade_in_event_loop(move |app| {
+                            let controls = app.global::<crate::WindowControls>();
+                            controls.set_min_pressed(false);
+                            controls.set_max_pressed(false);
+                            controls.set_close_pressed(false);
+                        });
+
+                        // 按下与松开在同一按钮时，触发操作
+                        // Execute action only when press and release are on the same button
                         if pressed == Some(wparam.0) {
                             if let Some(app) = state.weak.upgrade() {
                                 let controls = app.global::<crate::WindowControls>();
                                 match hit {
-                                    x if x == HTMINBUTTON as usize => controls.invoke_minimize(), // 最小化 / Minimize
-                                    x if x == HTMAXBUTTON as usize => controls.invoke_maximize(), // 最大化 / Maximize
-                                    x if x == HTCLOSE as usize => controls.invoke_close(),       // 关闭 / Close
+                                    x if x == HTMINBUTTON as usize => controls.invoke_minimize(),
+                                    x if x == HTMAXBUTTON as usize => controls.invoke_maximize(),
+                                    x if x == HTCLOSE as usize => controls.invoke_close(),
                                     _ => {}
                                 }
                             }
@@ -525,8 +550,8 @@ impl WindowFrame {
                     }
                     LRESULT(0)
                 } else {
-                    // 非控制按钮区域的释放消息交给默认处理（如标题栏双击还原等）
-                    // Release messages for non-control button areas are handled by default (e.g., titlebar double-click restore)
+                    // 非控制按钮区域交给默认处理
+                    // Non-control button area handled by default
                     unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
                 }
             }

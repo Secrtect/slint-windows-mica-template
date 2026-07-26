@@ -20,9 +20,16 @@ export global WindowControls {
     in-out property <length> minimize-width: 46px;
 
     // 由 Win32 非客户区消息驱动的三个按钮悬停状态
+    // Button hover states driven by Win32 non-client area messages
     in-out property <bool> min-hover: false;
     in-out property <bool> max-hover: false;
     in-out property <bool> close-hover: false;
+
+    // 由 Win32 WM_NCLBUTTONDOWN/UP 驱动的三个按钮按下状态
+    // Button pressed states driven by Win32 WM_NCLBUTTONDOWN/UP messages
+    in-out property <bool> min-pressed: false;
+    in-out property <bool> max-pressed: false;
+    in-out property <bool> close-pressed: false;
 }
 
 export component Titlebar inherits Rectangle {
@@ -31,8 +38,11 @@ export component Titlebar inherits Rectangle {
 
     // 深色模式纯白 (#ffffff)，浅色模式深黑 (#000000)
     private property <color> foreground-color: Palette.color-scheme == ColorScheme.dark ? #ffffff : #000000;
-    // 深色模式 10% 纯白遮罩 (#ffffff1a)，浅色模式 6% 纯黑遮罩 (#0000000f)
+    // Hover：深色 10% 纯白遮罩 / 浅色 6% 纯黑遮罩
     private property <color> btn-hover-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff1a : #0000000f;
+    // Pressed：深色 5% 纯白遮罩（比 hover 弱，营造踩陷感）/ 浅色 9% 纯黑遮罩（比 hover 深）
+    // Pressed: dark 5% white overlay (dimmer than hover for sunken feel) / light 9% black overlay (darker than hover)
+    private property <color> btn-pressed-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff0d : #00000017;
 
     height: WindowControls.titlebar-height;
     background: transparent;
@@ -79,8 +89,11 @@ export component Titlebar inherits Rectangle {
         // Minimize button
         if WindowControls.show-minimize: minimize-btn := Rectangle {
             width: WindowControls.minimize-width;
-            background: (minimize-touch.has-hover || WindowControls.min-hover) ? root.btn-hover-bg : transparent;
-            animate background { duration: 100ms; }
+            // 三阶优先级：Pressed > Hover > 透明
+            // Three-tier priority: Pressed > Hover > Transparent
+            background: WindowControls.min-pressed ? root.btn-pressed-bg :
+                        (minimize-touch.has-hover || WindowControls.min-hover) ? root.btn-hover-bg : transparent;
+            animate background { duration: 60ms; }
 
             minimize-touch := TouchArea {
                 clicked => { WindowControls.minimize(); }
@@ -100,8 +113,11 @@ export component Titlebar inherits Rectangle {
         // 最大化 / 还原按钮
         if WindowControls.show-maximize: maximize-btn := Rectangle {
             width: WindowControls.maximize-width;
-            background: (maximize-touch.has-hover || WindowControls.max-hover) ? root.btn-hover-bg : transparent;
-            animate background { duration: 100ms; }
+            // 三阶优先级：Pressed > Hover > 透明
+            // Three-tier priority: Pressed > Hover > Transparent
+            background: WindowControls.max-pressed ? root.btn-pressed-bg :
+                        (maximize-touch.has-hover || WindowControls.max-hover) ? root.btn-hover-bg : transparent;
+            animate background { duration: 60ms; }
 
             maximize-touch := TouchArea {
                 clicked => { WindowControls.maximize(); }
@@ -166,8 +182,11 @@ export component Titlebar inherits Rectangle {
         // Close button
         if WindowControls.show-close: close-btn := Rectangle {
             width: WindowControls.close-width;
-            background: (close-touch.has-hover || WindowControls.close-hover) ? #c42b1c : transparent;
-            animate background { duration: 100ms; }
+            // 关闭按钮三阶：Pressed 用 70% 暗红 / Hover 用 Win11 标准警示红 / 默认透明
+            // Close button three-tier: Pressed uses 70% dark red / Hover uses Win11 standard alert red / default transparent
+            background: WindowControls.close-pressed ? #b3241a :
+                        (close-touch.has-hover || WindowControls.close-hover) ? #c42b1c : transparent;
+            animate background { duration: 60ms; }
 
             close-touch := TouchArea {
                 clicked => { WindowControls.close(); }
@@ -178,9 +197,9 @@ export component Titlebar inherits Rectangle {
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                stroke: (close-touch.has-hover || WindowControls.close-hover) ? #ffffff : root.foreground-color;
+                stroke: (close-touch.has-hover || WindowControls.close-hover || WindowControls.close-pressed) ? #ffffff : root.foreground-color;
                 stroke-width: 1px;
-                animate stroke { duration: 100ms; }
+                animate stroke { duration: 60ms; }
 
                 MoveTo {
                     x: 0;
