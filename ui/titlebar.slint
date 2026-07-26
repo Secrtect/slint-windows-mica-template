@@ -29,9 +29,10 @@ export component Titlebar inherits Rectangle {
     in property <string> title: "Application";
     in property <image> icon;
 
-    // 深色模式纯白 (#ffffff)，浅色模式淡灰 (#cccccc)
-    private property <color> foreground-color: Palette.color-scheme == ColorScheme.dark ? #ffffff : #cccccc;
-    private property <color> btn-hover-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff1a : #80808030;
+    // 深色模式纯白 (#ffffff)，浅色模式深黑 (#000000)
+    private property <color> foreground-color: Palette.color-scheme == ColorScheme.dark ? #ffffff : #000000;
+    // 深色模式 10% 纯白遮罩 (#ffffff1a)，浅色模式 6% 纯黑遮罩 (#0000000f)
+    private property <color> btn-hover-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff1a : #0000000f;
 
     height: WindowControls.titlebar-height;
     background: transparent;
