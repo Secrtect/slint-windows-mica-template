@@ -92,12 +92,8 @@ export component Titlebar inherits Rectangle {
             // 三阶优先级：Pressed > Hover > 透明
             // Three-tier priority: Pressed > Hover > Transparent
             background: WindowControls.min-pressed ? root.btn-pressed-bg :
-                        (minimize-touch.has-hover || WindowControls.min-hover) ? root.btn-hover-bg : transparent;
+                        WindowControls.min-hover ? root.btn-hover-bg : transparent;
             animate background { duration: 60ms; }
-
-            minimize-touch := TouchArea {
-                clicked => { WindowControls.minimize(); }
-            }
 
             Rectangle {
                 width: 10px;
@@ -116,12 +112,8 @@ export component Titlebar inherits Rectangle {
             // 三阶优先级：Pressed > Hover > 透明
             // Three-tier priority: Pressed > Hover > Transparent
             background: WindowControls.max-pressed ? root.btn-pressed-bg :
-                        (maximize-touch.has-hover || WindowControls.max-hover) ? root.btn-hover-bg : transparent;
+                        WindowControls.max-hover ? root.btn-hover-bg : transparent;
             animate background { duration: 60ms; }
-
-            maximize-touch := TouchArea {
-                clicked => { WindowControls.maximize(); }
-            }
 
             // 未最大化：圆角矩形（用 Path 绘制，与还原图标同一渲染流水线）
             // Rectangle 的 border 和 Path 的 stroke 在高 DPI 下抗锯齿算法不同，
@@ -185,19 +177,15 @@ export component Titlebar inherits Rectangle {
             // 关闭按钮三阶：Pressed 用 70% 暗红 / Hover 用 Win11 标准警示红 / 默认透明
             // Close button three-tier: Pressed uses 70% dark red / Hover uses Win11 standard alert red / default transparent
             background: WindowControls.close-pressed ? #b3241a :
-                        (close-touch.has-hover || WindowControls.close-hover) ? #c42b1c : transparent;
+                        WindowControls.close-hover ? #c42b1c : transparent;
             animate background { duration: 60ms; }
-
-            close-touch := TouchArea {
-                clicked => { WindowControls.close(); }
-            }
 
             Path {
                 width: 10px;
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                stroke: (close-touch.has-hover || WindowControls.close-hover || WindowControls.close-pressed) ? #ffffff : root.foreground-color;
+                stroke: (WindowControls.close-hover || WindowControls.close-pressed) ? #ffffff : root.foreground-color;
                 stroke-width: 1px;
                 animate stroke { duration: 60ms; }
 

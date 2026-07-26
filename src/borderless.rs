@@ -21,8 +21,9 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTCLOSE, HTLEFT, HTMAXBUTTON,
     HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS,
-    SIZE_MAXIMIZED, SIZE_RESTORED, WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST,
-    WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
+    SIZE_MAXIMIZED, SIZE_RESTORED, WM_CANCELMODE, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCCALCSIZE,
+    WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE,
+    WM_NCMOUSEMOVE, WM_SIZE,
 };
 
 /// 最大化状态变更回调类型
@@ -410,33 +411,61 @@ impl WindowFrame {
                 LRESULT(HTCLIENT as isize)
             }
 
-            // 非客户区鼠标移动：实时更新按钮悬停状态
-            // Non-client area mouse move: update button hover state in real-time
+            // 非客户区鼠标移动：实时更新按钮悬停与按下状态
+            // Non-client area mouse move: update button hover and pressed states in real-time
             WM_NCMOUSEMOVE => {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
+
+                    let hit = wparam.0 as usize;
+                    let pressed = state
+                        .pressed_hit
+                        .lock()
+                        .unwrap_or_else(|e| e.into_inner())
+                        .clone();
+
                     if let Some(app) = state.weak.upgrade() {
                         let controls = app.global::<crate::WindowControls>();
-                        // wparam 包含命中测试结果
-                        // wparam contains the hit test result
-                        let hit = wparam.0 as usize;
 
-                        // 判断鼠标悬停在哪个按钮上
-                        // Determine which button the mouse is hovering over
-                        let is_min = hit == HTMINBUTTON as usize;
-                        let is_max = hit == HTMAXBUTTON as usize;
-                        let is_close = hit == HTCLOSE as usize;
+                        if let Some(pressed_code) = pressed {
+                            // 按住某个按钮拖拽场景 (Dragging while button held down)
+                            if hit == pressed_code {
+                                // 鼠标留在/移回当初按下的按钮：恢复该按钮的 pressed 状态，取消所有 hover
+                                let is_min = pressed_code == HTMINBUTTON as usize;
+                                let is_max = pressed_code == HTMAXBUTTON as usize;
+                                let is_close = pressed_code == HTCLOSE as usize;
 
-                        // 更新全局状态以触发 UI 更新
-                        // Update global state to trigger UI updates
-                        if controls.get_min_hover() != is_min {
-                            controls.set_min_hover(is_min);
-                        }
-                        if controls.get_max_hover() != is_max {
-                            controls.set_max_hover(is_max);
-                        }
-                        if controls.get_close_hover() != is_close {
-                            controls.set_close_hover(is_close);
+                                if controls.get_min_pressed() != is_min { controls.set_min_pressed(is_min); }
+                                if controls.get_max_pressed() != is_max { controls.set_max_pressed(is_max); }
+                                if controls.get_close_pressed() != is_close { controls.set_close_pressed(is_close); }
+
+                                if controls.get_min_hover() { controls.set_min_hover(false); }
+                                if controls.get_max_hover() { controls.set_max_hover(false); }
+                                if controls.get_close_hover() { controls.set_close_hover(false); }
+                            } else {
+                                // 鼠标移出按下的按钮（无论移到其他按钮还是空白处）：
+                                // 按下的按钮取消 pressed 视觉，其他按钮也不显示 hover（符合 Win11 原生行为）
+                                if controls.get_min_pressed() { controls.set_min_pressed(false); }
+                                if controls.get_max_pressed() { controls.set_max_pressed(false); }
+                                if controls.get_close_pressed() { controls.set_close_pressed(false); }
+
+                                if controls.get_min_hover() { controls.set_min_hover(false); }
+                                if controls.get_max_hover() { controls.set_max_hover(false); }
+                                if controls.get_close_hover() { controls.set_close_hover(false); }
+                            }
+                        } else {
+                            // 正常悬停（无按钮被按住）：按 wparam 命中测试结果更新 hover
+                            let is_min = hit == HTMINBUTTON as usize;
+                            let is_max = hit == HTMAXBUTTON as usize;
+                            let is_close = hit == HTCLOSE as usize;
+
+                            if controls.get_min_hover() != is_min { controls.set_min_hover(is_min); }
+                            if controls.get_max_hover() != is_max { controls.set_max_hover(is_max); }
+                            if controls.get_close_hover() != is_close { controls.set_close_hover(is_close); }
+
+                            if controls.get_min_pressed() { controls.set_min_pressed(false); }
+                            if controls.get_max_pressed() { controls.set_max_pressed(false); }
+                            if controls.get_close_pressed() { controls.set_close_pressed(false); }
                         }
                     }
                 }
@@ -455,23 +484,16 @@ impl WindowFrame {
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
 
-            // 鼠标离开非客户区或进入客户区：重置 hover 和 pressed 状态
-            // Mouse leaves non-client area or enters client area: reset hover and pressed states
+            // 鼠标离开非客户区或进入客户区：若无按住事件则清理 hover，若有按住事件则保持 pressed_hit
+            // Mouse leaves non-client area or enters client area: reset hover and pressed states if not dragging
             WM_NCMOUSELEAVE | WM_MOUSEMOVE => {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
-                    // 清理可能残留的按下监测标记
-                    // Clear any remaining press tracking mark
-                    *state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()) = None;
-
                     if let Some(app) = state.weak.upgrade() {
                         let controls = app.global::<crate::WindowControls>();
-                        // 重置 hover 状态
                         if controls.get_min_hover() { controls.set_min_hover(false); }
                         if controls.get_max_hover() { controls.set_max_hover(false); }
                         if controls.get_close_hover() { controls.set_close_hover(false); }
-                        // 重置 pressed 状态（防止按住按钮后拖出窗口导致 pressed 永久残留）
-                        // Reset pressed state (prevent stuck pressed when holding button and dragging out of window)
                         if controls.get_min_pressed() { controls.set_min_pressed(false); }
                         if controls.get_max_pressed() { controls.set_max_pressed(false); }
                         if controls.get_close_pressed() { controls.set_close_pressed(false); }
@@ -489,23 +511,22 @@ impl WindowFrame {
             {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
+                    let hit = wparam.0;
                     // 记录按下区域（用于松手区域一致性校验）
                     // Record press area (for release area consistency check)
-                    *state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()) = Some(wparam.0);
+                    *state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()) = Some(hit);
 
                     // 通知 Slint UI 进入按下状态
                     // Notify Slint UI to enter pressed state
-                    let hit = wparam.0;
                     let weak = state.weak.clone();
                     let _ = weak.upgrade_in_event_loop(move |app| {
                         let controls = app.global::<crate::WindowControls>();
-                        if hit == HTMINBUTTON as usize {
-                            controls.set_min_pressed(true);
-                        } else if hit == HTMAXBUTTON as usize {
-                            controls.set_max_pressed(true);
-                        } else if hit == HTCLOSE as usize {
-                            controls.set_close_pressed(true);
-                        }
+                        controls.set_min_pressed(hit == HTMINBUTTON as usize);
+                        controls.set_max_pressed(hit == HTMAXBUTTON as usize);
+                        controls.set_close_pressed(hit == HTCLOSE as usize);
+                        controls.set_min_hover(false);
+                        controls.set_max_hover(false);
+                        controls.set_close_hover(false);
                     });
                 }
                 LRESULT(0)
@@ -513,30 +534,30 @@ impl WindowFrame {
 
             // 处理标题栏按钮的释放消息：清除 pressed 状态，并仅当按下与松开在同一按钮时才执行操作
             // Handle titlebar button release: clear pressed state, execute action only if press+release on same button
-            WM_NCLBUTTONUP => {
+            WM_NCLBUTTONUP | WM_LBUTTONUP => {
                 let hit = wparam.0 as usize;
-                let is_ctrl_button = hit == HTMINBUTTON as usize
-                    || hit == HTMAXBUTTON as usize
-                    || hit == HTCLOSE as usize;
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    let pressed = state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()).take();
 
-                if is_ctrl_button {
-                    if !state_ptr.is_null() {
-                        let state = unsafe { &*state_ptr };
-                        let pressed = state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()).take();
+                    // 先清除 Slint 中的 pressed 状态并按 release hit 更新 hover 状态
+                    // Clear pressed state in Slint and update hover per release hit
+                    let weak = state.weak.clone();
+                    let _ = weak.upgrade_in_event_loop(move |app| {
+                        let controls = app.global::<crate::WindowControls>();
+                        controls.set_min_pressed(false);
+                        controls.set_max_pressed(false);
+                        controls.set_close_pressed(false);
 
-                        // 先清除 Slint 中的 pressed 状态
-                        // First clear the pressed state in Slint
-                        let weak = state.weak.clone();
-                        let _ = weak.upgrade_in_event_loop(move |app| {
-                            let controls = app.global::<crate::WindowControls>();
-                            controls.set_min_pressed(false);
-                            controls.set_max_pressed(false);
-                            controls.set_close_pressed(false);
-                        });
+                        controls.set_min_hover(hit == HTMINBUTTON as usize);
+                        controls.set_max_hover(hit == HTMAXBUTTON as usize);
+                        controls.set_close_hover(hit == HTCLOSE as usize);
+                    });
 
-                        // 按下与松开在同一按钮时，触发操作
-                        // Execute action only when press and release are on the same button
-                        if pressed == Some(wparam.0) {
+                    // 按下与松开在同一按钮时，触发操作
+                    // Execute action only when press and release are on the same button
+                    if let Some(pressed_hit) = pressed {
+                        if pressed_hit == hit {
                             if let Some(app) = state.weak.upgrade() {
                                 let controls = app.global::<crate::WindowControls>();
                                 match hit {
@@ -548,12 +569,34 @@ impl WindowFrame {
                             }
                         }
                     }
+                }
+                let is_ctrl_button = hit == HTMINBUTTON as usize
+                    || hit == HTMAXBUTTON as usize
+                    || hit == HTCLOSE as usize;
+                if is_ctrl_button {
                     LRESULT(0)
                 } else {
-                    // 非控制按钮区域交给默认处理
-                    // Non-control button area handled by default
                     unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
                 }
+            }
+
+            // 取消模式（如弹出模态框或切屏）：清理 pressed 和 hover 状态
+            // Cancel mode (e.g. modal popups or window switch): clean up pressed and hover states
+            WM_CANCELMODE => {
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    *state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()) = None;
+                    if let Some(app) = state.weak.upgrade() {
+                        let controls = app.global::<crate::WindowControls>();
+                        controls.set_min_hover(false);
+                        controls.set_max_hover(false);
+                        controls.set_close_hover(false);
+                        controls.set_min_pressed(false);
+                        controls.set_max_pressed(false);
+                        controls.set_close_pressed(false);
+                    }
+                }
+                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
 
             // 其他未处理的消息：调用默认的子类过程
