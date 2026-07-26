@@ -330,36 +330,44 @@ impl WindowFrame {
                         let btn_bottom = rect.top + title_h;
 
                         if y >= btn_top && y < btn_bottom {
-                            // 1. 关闭按钮区域判断（从右至左：关闭 -> 最大化 -> 最小化）
-                            // 1. Close button area detection (from right to left: close -> maximize -> minimize)
-                            let close_left = rect.right - close_w;
-                            let close_right = rect.right;
-                            if x >= close_left && x < close_right {
-                                return LRESULT(HTCLOSE as isize);
+                            // 从右向左依次判断各按钮热区，跳过所有 show-* = false 的按钮
+                            // Detect button hit zones right-to-left, skipping any button with show-* = false
+
+                            // 1. 关闭按钮
+                            // 1. Close button
+                            if controls.get_show_close() {
+                                let close_left = rect.right - close_w;
+                                if x >= close_left && x < rect.right {
+                                    return LRESULT(HTCLOSE as isize);
+                                }
                             }
 
-                            // 2. 最大化按钮区域判断（可选显示）
-                            // 2. Maximize button area detection (optional display)
-                            let max_left = close_left - max_w;
-                            let max_right = close_left;
-                            if controls.get_show_maximize() && x >= max_left && x < max_right {
-                                return LRESULT(HTMAXBUTTON as isize);
+                            // 2. 计算关闭按钮占用的实际宽度（不显示则为 0）
+                            // 2. Effective width occupied by close button (0 if hidden)
+                            let effective_close_w = if controls.get_show_close() { close_w } else { 0 };
+
+                            // 3. 最大化按钮
+                            // 3. Maximize button
+                            if controls.get_show_maximize() {
+                                let max_right = rect.right - effective_close_w;
+                                let max_left = max_right - max_w;
+                                if x >= max_left && x < max_right {
+                                    return LRESULT(HTMAXBUTTON as isize);
+                                }
                             }
 
-                            // 3. 最小化按钮区域判断（位置根据是否显示最大化按钮调整）
-                            // 3. Minimize button area detection (position adjusts based on maximize button visibility)
-                            let min_left = if controls.get_show_maximize() {
-                                max_left - min_w
-                            } else {
-                                close_left - min_w
-                            };
-                            let min_right = if controls.get_show_maximize() {
-                                max_left
-                            } else {
-                                close_left
-                            };
-                            if x >= min_left && x < min_right {
-                                return LRESULT(HTMINBUTTON as isize);
+                            // 4. 计算前两个按钮占用的实际宽度
+                            // 4. Effective width of the two preceding buttons
+                            let effective_max_w = if controls.get_show_maximize() { max_w } else { 0 };
+
+                            // 5. 最小化按钮
+                            // 5. Minimize button
+                            if controls.get_show_minimize() {
+                                let min_right = rect.right - effective_close_w - effective_max_w;
+                                let min_left = min_right - min_w;
+                                if x >= min_left && x < min_right {
+                                    return LRESULT(HTMINBUTTON as isize);
+                                }
                             }
                         }
                     }

@@ -30,9 +30,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 4. Apply Mica visual effects
     effects::apply_mica_effect(&app);
 
-    // 5. 绑定窗口控制回调
-    // 5. Bind window control callbacks
-    controls::setup_window_controls(&app, frame);
+    // 5. 绑定窗口控制回调（按需调整三个按钮的可见性）
+    // 5. Bind window control callbacks (adjust button visibility as needed)
+    controls::setup_window_controls(&app, frame, controls::TitlebarButtons {
+        show_minimize: true,
+        show_maximize: true,
+        show_close: true,
+    });
 
     // 6. 运行主循环
     // 6. Run main loop
