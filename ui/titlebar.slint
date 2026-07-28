@@ -40,9 +40,9 @@ export component Titlebar inherits Rectangle {
     private property <color> foreground-color: Palette.color-scheme == ColorScheme.dark ? #ffffff : #000000;
     // Hover：深色 10% 纯白遮罩 / 浅色 6% 纯黑遮罩
     private property <color> btn-hover-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff1a : #0000000f;
-    // Pressed：深色 5% 纯白遮罩（比 hover 弱，营造踩陷感）/ 浅色 9% 纯黑遮罩（比 hover 深）
-    // Pressed: dark 5% white overlay (dimmer than hover for sunken feel) / light 9% black overlay (darker than hover)
-    private property <color> btn-pressed-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff0d : #00000017;
+    // Pressed：按压变浅（使用 SubtleFillColorTertiary 规范）
+    // 深色 5% 纯白遮罩（比 hover 弱）/ 浅色 3% 纯黑遮罩（比 hover 浅）
+    private property <color> btn-pressed-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff0d : #00000008;
 
     height: WindowControls.titlebar-height;
     background: transparent;
@@ -174,9 +174,8 @@ export component Titlebar inherits Rectangle {
         // Close button
         if WindowControls.show-close: close-btn := Rectangle {
             width: WindowControls.close-width;
-            // 关闭按钮三阶：Pressed 用 70% 暗红 / Hover 用 Win11 标准警示红 / 默认透明
-            // Close button three-tier: Pressed uses 70% dark red / Hover uses Win11 standard alert red / default transparent
-            background: WindowControls.close-pressed ? #b3241a :
+            // 关闭按钮三阶：Pressed 降低红底浓度呈现变浅/透光感（#c42b1cc8）/ Hover 用 Win11 标准警示红（#c42b1c）/ 默认透明
+            background: WindowControls.close-pressed ? #c42b1cc8 :
                         WindowControls.close-hover ? #c42b1c : transparent;
             animate background { duration: 60ms; }
 
