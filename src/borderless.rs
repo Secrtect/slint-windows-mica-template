@@ -13,7 +13,7 @@ use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
 };
 use winit::platform::windows::{CornerPreference, WindowExtWindows};
-use windows::Win32::UI::HiDpi::GetDpiForWindow;
+use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
     TME_LEAVE, TME_NONCLIENT, TRACKMOUSEEVENT, TRACKMOUSEEVENT_FLAGS, TrackMouseEvent,
@@ -21,9 +21,9 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTCLOSE, HTLEFT, HTMAXBUTTON,
     HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS,
-    SIZE_MAXIMIZED, SIZE_RESTORED, WM_CANCELMODE, WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCCALCSIZE,
-    WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE,
-    WM_NCMOUSEMOVE, WM_SIZE,
+    SIZE_MAXIMIZED, SIZE_RESTORED, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, WM_CANCELMODE, WM_LBUTTONUP,
+    WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP,
+    WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
 };
 
 /// 最大化状态变更回调类型
@@ -59,9 +59,20 @@ impl Clone for WindowFrame {
 }
 
 impl WindowFrame {
-    /// 窗口边缘可拉伸区域的宽度（像素）
-    /// Width of the resizable border area (in pixels)
-    const BORDER_WIDTH: i32 = 8;
+    /// 根据窗口 DPI 动态获取系统标准拉伸边框宽度（SM_CXSIZEFRAME + SM_CXPADDEDBORDER）
+    /// Dynamically gets the system standard resizable border width for the window's DPI
+    fn get_resize_border_width(hwnd: HWND) -> i32 {
+        let dpi = unsafe { GetDpiForWindow(hwnd) };
+        if dpi != 0 {
+            unsafe {
+                GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi)
+                    + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi)
+            }
+        } else {
+            8
+        }
+    }
+
     /// 窗口子类化的唯一标识符
     /// Unique identifier for window subclassing
     const SUBCLASS_ID: usize = 1;
@@ -377,10 +388,11 @@ impl WindowFrame {
                 // 按钮未命中后，非最大化时判定窗口边缘拉伸区域
                 // After button miss, determine window edge resizing area when not maximized
                 if !is_zoomed {
-                    let left = x - rect.left < Self::BORDER_WIDTH;
-                    let right = rect.right - x <= Self::BORDER_WIDTH;
-                    let top = y - rect.top < Self::BORDER_WIDTH;
-                    let bottom = rect.bottom - y <= Self::BORDER_WIDTH;
+                    let border_width = Self::get_resize_border_width(hwnd);
+                    let left = x - rect.left < border_width;
+                    let right = rect.right - x <= border_width;
+                    let top = y - rect.top < border_width;
+                    let bottom = rect.bottom - y <= border_width;
 
                     if top || bottom || left || right {
                         // 根据鼠标位置返回对应的边缘/角点命中测试结果
