@@ -22,9 +22,9 @@ use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTCLOSE, HTLEFT, HTMAXBUTTON,
     HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS,
     SIZE_MAXIMIZED, SIZE_RESTORED, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SetWindowPos, SWP_FRAMECHANGED,
-    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_CANCELMODE, WM_LBUTTONUP,
-    WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP,
-    WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WA_INACTIVE, WM_ACTIVATE, WM_CANCELMODE,
+    WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN,
+    WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
 };
 
 /// 最大化状态变更回调类型
@@ -233,6 +233,33 @@ impl WindowFrame {
         let state_ptr = ref_data as *const FrameState;
 
         match msg {
+            // 窗口激活状态变更消息：驱动标题栏失焦变淡效果
+            // Window activation state change: drives titlebar inactive dimming effect
+            WM_ACTIVATE => {
+                // WA_INACTIVE (0) = 失去焦点；WA_ACTIVE (1) / WA_CLICKACTIVE (2) = 获得焦点
+                // WA_INACTIVE (0) = losing focus; WA_ACTIVE (1) / WA_CLICKACTIVE (2) = gaining focus
+                let is_active = (wparam.0 & 0xFFFF) as u16 != WA_INACTIVE as u16;
+                if !state_ptr.is_null() {
+                    let state = unsafe { &*state_ptr };
+                    let weak = state.weak.clone();
+                    let _ = weak.upgrade_in_event_loop(move |app| {
+                        let controls = app.global::<crate::WindowControls>();
+                        controls.set_is_active(is_active);
+                        // 失焦时清除所有按钮 hover/pressed 状态，避免残留视觉效果
+                        // Clear all button hover/pressed states when inactive to avoid visual residue
+                        if !is_active {
+                            controls.set_min_hover(false);
+                            controls.set_max_hover(false);
+                            controls.set_close_hover(false);
+                            controls.set_min_pressed(false);
+                            controls.set_max_pressed(false);
+                            controls.set_close_pressed(false);
+                        }
+                    });
+                }
+                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+            }
+
             // 窗口大小变更消息：用于检测最大化/还原状态
             // Window size change message: used to detect maximize/restore state
             WM_SIZE => {

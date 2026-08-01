@@ -19,6 +19,10 @@ export global WindowControls {
     in-out property <length> maximize-width: 46px;
     in-out property <length> minimize-width: 46px;
 
+    // 由 Win32 WM_ACTIVATE 消息驱动的窗口激活状态
+    // Window active state driven by Win32 WM_ACTIVATE message
+    in-out property <bool> is-active: true;
+
     // 由 Win32 非客户区消息驱动的三个按钮悬停状态
     // Button hover states driven by Win32 non-client area messages
     in-out property <bool> min-hover: false;
@@ -36,8 +40,12 @@ export component Titlebar inherits Rectangle {
     in property <string> title: "Application";
     in property <image> icon;
 
-    // 深色模式纯白 (#ffffff)，浅色模式灰色 (#cccccc)
-    private property <color> foreground-color: Palette.color-scheme == ColorScheme.dark ? #ffffff : #cccccc;
+    // 激活时：深色纯白 / 浅色深黑；失焦时：40% 透明度（与 Win11 非活动标题栏一致）
+    // Active: dark=white / light=near-black; Inactive: 40% opacity (matches Win11 inactive titlebar)
+    private property <color> foreground-color:
+        WindowControls.is-active
+            ? (Palette.color-scheme == ColorScheme.dark ? #ffffff : #191919)
+            : (Palette.color-scheme == ColorScheme.dark ? #ffffff66 : #00000066);
     // Hover：深色 10% 纯白遮罩 / 浅色 6% 纯黑遮罩
     private property <color> btn-hover-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff1a : #0000000f;
     // Pressed：按压变浅（使用 SubtleFillColorTertiary 规范）
@@ -174,7 +182,10 @@ export component Titlebar inherits Rectangle {
         // Close button
         if WindowControls.show-close: close-btn := Rectangle {
             width: WindowControls.close-width;
-            // 关闭按钮三阶：Pressed 降低红底浓度呈现变浅/透光感（#c42b1cc8）/ Hover 用 Win11 标准警示红（#c42b1c）/ 默认透明
+            // 关闭按钮三阶：Pressed 降低红底浓度 / Hover 用 Win11 标准警示红 / 默认透明
+            // 失焦时仍保留红色 hover 效果，与 Win11 原生标题栏关闭按钮行为一致
+            // Close button: Pressed dims red / Hover shows Win11 red / Default transparent
+            // Inactive state still keeps red hover, matching Win11 native close button behavior
             background: WindowControls.close-pressed ? #c42b1cc8 :
                         WindowControls.close-hover ? #c42b1c : transparent;
             animate background { duration: 60ms; }
@@ -184,7 +195,10 @@ export component Titlebar inherits Rectangle {
                 height: 10px;
                 x: (parent.width - self.width) / 2;
                 y: (parent.height - self.height) / 2;
-                stroke: (WindowControls.close-hover || WindowControls.close-pressed) ? #ffffff : root.foreground-color;
+                // 悬停/按下时显示白色（不论是否激活）；其余情况使用 foreground-color（失焦时已变淡）
+                // White when hover/pressed (regardless of active state); otherwise use foreground-color (dimmed when inactive)
+                stroke: (WindowControls.close-hover || WindowControls.close-pressed)
+                    ? #ffffff : root.foreground-color;
                 stroke-width: 1px;
                 animate stroke { duration: 60ms; }
 
