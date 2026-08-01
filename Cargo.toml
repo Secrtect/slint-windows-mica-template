@@ -9,7 +9,7 @@ slint = { version = "1.17.1", default-features = false, features = [
   "backend-winit",
   "compat-1-2",
   "raw-window-handle-06",
-  "renderer-software",
+  "renderer-skia",
 ] }
 
 # 1. 为本地的 src/borderless.rs 补充这三个依赖
