@@ -21,7 +21,8 @@ use windows::Win32::UI::Input::KeyboardAndMouse::{
 use windows::Win32::UI::WindowsAndMessaging::{
     GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCLIENT, HTCLOSE, HTLEFT, HTMAXBUTTON,
     HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS,
-    SIZE_MAXIMIZED, SIZE_RESTORED, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, WM_CANCELMODE, WM_LBUTTONUP,
+    SIZE_MAXIMIZED, SIZE_RESTORED, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SetWindowPos, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_CANCELMODE, WM_LBUTTONUP,
     WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN, WM_NCLBUTTONUP,
     WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
 };
@@ -161,6 +162,22 @@ impl WindowFrame {
             // 安装自定义窗口过程（子类化）
             // Install custom window procedure (subclassing)
             Self::install_custom_frame(hwnd, self.state.clone());
+
+            // 触发 SWP_FRAMECHANGED 通知 DWM 重新计算和更新非客户区框架与 hit-test 缓存
+            // 解决 Win11 贴靠布局 (Snap Layouts) 在刚打开窗口悬停最大化按钮时不弹出的问题
+            // Trigger SWP_FRAMECHANGED to notify DWM to recalculate non-client frame metrics
+            // Fixes Win11 Snap Layouts hover popup not appearing when window first opens
+            unsafe {
+                let _ = SetWindowPos(
+                    hwnd,
+                    None,
+                    0,
+                    0,
+                    0,
+                    0,
+                    SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE,
+                );
+            }
         });
     }
 
