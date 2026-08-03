@@ -23,8 +23,8 @@ use windows::Win32::UI::WindowsAndMessaging::{
     HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed, NCCALCSIZE_PARAMS,
     SIZE_MAXIMIZED, SIZE_RESTORED, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SetWindowPos, SWP_FRAMECHANGED,
     SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WA_INACTIVE, WM_ACTIVATE, WM_CANCELMODE,
-    WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCLBUTTONDOWN,
-    WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
+    WM_LBUTTONUP, WM_MOUSEMOVE, WM_NCACTIVATE, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST,
+    WM_NCLBUTTONDOWN, WM_NCLBUTTONUP, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE, WM_SIZE,
 };
 
 /// 最大化状态变更回调类型
@@ -258,6 +258,27 @@ impl WindowFrame {
                     });
                 }
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+            }
+
+            // 非客户区激活消息：在无 DWM 合成的环境中（远程桌面/经典主题），
+            // 阻止 Windows 在窗口激活/失活时重绘默认的非客户区边框。
+            // Non-client activation: when DWM composition is disabled (remote desktop / classic theme),
+            // prevent Windows from redrawing the default non-client frame on activation change.
+            WM_NCACTIVATE => {
+                // 检查 DWM 合成是否启用
+                // Check if DWM composition is enabled
+                let composition_enabled = unsafe {
+                    windows::Win32::Graphics::Dwm::DwmIsCompositionEnabled()
+                };
+                if composition_enabled.map(|b| b.as_bool()).unwrap_or(false) {
+                    // DWM 合成已启用（Win10/11 常态），交给默认处理
+                    // DWM composition enabled (normal on Win10/11), let default handle it
+                    unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+                } else {
+                    // DWM 合成未启用：返回 1 阻止默认边框重绘
+                    // DWM composition disabled: return 1 to prevent default frame redraw
+                    LRESULT(1)
+                }
             }
 
             // 窗口大小变更消息：用于检测最大化/还原状态
