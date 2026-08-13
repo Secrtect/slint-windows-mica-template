@@ -27,7 +27,7 @@ fn main() -> Result<(), Box<dyn Error>> {
     //    but lazily during show() inside app.run().
     //    So the hook guard must stay alive through run().
     //    The hook self-uninstalls after capturing the UI window; guard's Drop is just cleanup.
-    let hook_installed = cbt_hook::CbtHookGuard::install(|hwnd| {
+    let hook_installed = cbt_hook::CbtHookGuard::install(Some("Slint标准组件全家桶".to_string()), |hwnd| {
         // 启动时读取系统当前主题色（浅色/深色）
         // Read the current system theme (light/dark) at startup
         let is_dark = attributes::is_system_dark_mode();

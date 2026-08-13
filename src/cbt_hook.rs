@@ -35,6 +35,8 @@ mod inner {
         /// 已识别的目标 UI 窗口 HWND（在 HCBT_CREATEWND 中设置）
         /// Target UI window HWND identified during HCBT_CREATEWND
         target: Option<HWND>,
+        /// 目标窗口的标题（可选，如果传入则匹配标题）
+        target_title: Option<String>,
         /// 回调是否已执行（在 HCBT_ACTIVATE 中设置）
         /// Whether the callback has been executed (set during HCBT_ACTIVATE)
         applied: bool,
@@ -76,7 +78,7 @@ mod inner {
         ///
         /// Returns `Ok(guard)` on success. On failure returns `Err`, but the caller can
         /// fall back to the existing `invoke_from_event_loop` path.
-        pub fn install(on_hwnd_ready: impl FnOnce(HWND) + 'static) -> Result<Self, String> {
+        pub fn install(target_title: Option<String>, on_hwnd_ready: impl FnOnce(HWND) + 'static) -> Result<Self, String> {
             // 清理可能残留的上下文
             // Clean up any leftover context
             ACTIVE_CONTEXT.with(|ctx| {
@@ -96,6 +98,7 @@ mod inner {
                     on_hwnd_ready: Some(Box::new(on_hwnd_ready)),
                     hook,
                     target: None,
+                    target_title,
                     applied: false,
                 });
             });
@@ -213,6 +216,30 @@ mod inner {
         )
     }
 
+    /// 从 CREATESTRUCTW 中提取窗口标题
+    /// Extract window name (title) from CREATESTRUCTW
+    unsafe fn extract_window_name(cbt_create: *const CBT_CREATEWNDW) -> String {
+        if cbt_create.is_null() {
+            return String::new();
+        }
+        let cs_ptr = unsafe { (*cbt_create).lpcs };
+        if cs_ptr.is_null() {
+            return String::new();
+        }
+        let cs = unsafe { &*cs_ptr };
+        if cs.lpszName.is_null() {
+            return String::new();
+        }
+        if (cs.lpszName as usize) <= 0xFFFF {
+            return String::new();
+        }
+        let mut len = 0;
+        while unsafe { *cs.lpszName.add(len) } != 0 {
+            len += 1;
+        }
+        String::from_utf16_lossy(unsafe { std::slice::from_raw_parts(cs.lpszName, len) })
+    }
+
     // ────────────────────────────────────────────────────────────────────────
     // WH_CBT 回调
     // WH_CBT callback
@@ -235,6 +262,7 @@ mod inner {
             HCBT_CREATEWND if lparam != 0 => {
                 let cbt_create = lparam as *const CBT_CREATEWNDW;
                 let (class_name, is_atom) = unsafe { extract_class_name(cbt_create) };
+                let window_name = unsafe { extract_window_name(cbt_create) };
 
                 if !is_system_or_helper_class(&class_name, is_atom)
                     && is_top_level(hwnd)
@@ -244,18 +272,31 @@ mod inner {
                         let mut ctx = ctx.borrow_mut();
                         if let Some(ref mut context) = *ctx {
                             if context.target.is_none() {
-                                println!(
-                                    "[CbtHook] 🎯 识别 Slint UI 顶层窗口 HWND({:?}) (Class: {:?})，等待 ACTIVATE 回调",
-                                    hwnd, class_name
-                                );
-                                context.target = Some(hwnd);
+                                let title_matches = if let Some(ref target_title) = context.target_title {
+                                    &window_name == target_title
+                                } else {
+                                    true
+                                };
+
+                                if title_matches {
+                                    println!(
+                                        "[CbtHook] 🎯 识别 Slint UI 顶层窗口 HWND({:?}) (Class: {:?}, Title: {:?})，等待 ACTIVATE 回调",
+                                        hwnd, class_name, window_name
+                                    );
+                                    context.target = Some(hwnd);
+                                } else {
+                                    println!(
+                                        "[CbtHook] 标题不匹配，忽略窗口 HWND({:?}) (Class: {:?}, Title: {:?}, Expected: {:?})",
+                                        hwnd, class_name, window_name, context.target_title
+                                    );
+                                }
                             }
                         }
                     });
                 } else {
                     println!(
-                        "[CbtHook] 忽略窗口 HWND({:?}) (Class: {:?}, top_level: {}, is_atom: {})",
-                        hwnd, class_name, is_top_level(hwnd), is_atom
+                        "[CbtHook] 忽略窗口 HWND({:?}) (Class: {:?}, Title: {:?}, top_level: {}, is_atom: {})",
+                        hwnd, class_name, window_name, is_top_level(hwnd), is_atom
                     );
                 }
             }
@@ -317,7 +358,7 @@ pub mod fallback {
     pub struct CbtHookGuard;
 
     impl CbtHookGuard {
-        pub fn install(_on_hwnd_ready: impl FnOnce(()) + 'static) -> Result<Self, String> {
+        pub fn install(_target_title: Option<String>, _on_hwnd_ready: impl FnOnce(()) + 'static) -> Result<Self, String> {
             Ok(Self)
         }
         pub fn was_applied(&self) -> bool {
