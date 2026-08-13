@@ -23,7 +23,8 @@ mod inner {
     use windows_sys::Win32::System::Threading::GetCurrentThreadId;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
         CallNextHookEx, GetClassNameW, GetParent, GetWindow, SetWindowsHookExW,
-        UnhookWindowsHookEx, CBT_CREATEWNDW, GW_OWNER, HCBT_CREATEWND, HHOOK, WH_CBT,
+        UnhookWindowsHookEx, CBT_CREATEWNDW, GW_OWNER, HCBT_ACTIVATE, HCBT_CREATEWND,
+        HHOOK, WH_CBT,
     };
 
     // ────────────────────────────────────────────────────────────────────────
@@ -198,6 +199,11 @@ mod inner {
     struct HookContext {
         preset: DwmPreset,
         hook: HHOOK,
+        /// 已识别的目标 UI 窗口 HWND（在 HCBT_CREATEWND 中设置）
+        /// Target UI window HWND identified during HCBT_CREATEWND
+        target: Option<HWND>,
+        /// DWM 属性是否已成功注入（在 HCBT_ACTIVATE 中设置）
+        /// Whether DWM attributes have been successfully injected (set during HCBT_ACTIVATE)
         applied: bool,
     }
 
@@ -250,6 +256,7 @@ mod inner {
                 *ctx.borrow_mut() = Some(HookContext {
                     preset,
                     hook,
+                    target: None,
                     applied: false,
                 });
             });
@@ -381,48 +388,70 @@ mod inner {
             return unsafe { CallNextHookEx(0 as _, n_code, wparam, lparam) };
         }
 
-        if n_code as u32 == HCBT_CREATEWND && lparam != 0 {
-            let hwnd = wparam as HWND;
-            let cbt_create = lparam as *const CBT_CREATEWNDW;
+        let hwnd = wparam as HWND;
 
-            let (class_name, is_atom) = unsafe { extract_class_name(cbt_create) };
+        match n_code as u32 {
+            // ── 阶段 1：CREATEWND 仅识别并记录目标 HWND ──
+            // ── Phase 1: CREATEWND only identifies and records target HWND ──
+            HCBT_CREATEWND if lparam != 0 => {
+                let cbt_create = lparam as *const CBT_CREATEWNDW;
+                let (class_name, is_atom) = unsafe { extract_class_name(cbt_create) };
 
-            // 过滤条件：必须是顶层窗口 + winit UI 窗口类名 + 非系统辅助窗口
-            // Filter: must be top-level + winit UI window class + not system helper
-            if !is_system_or_helper_class(&class_name, is_atom)
-                && is_top_level(hwnd)
-                && class_name == "Window Class"
-            {
-                ACTIVE_CONTEXT.with(|ctx| {
-                    let mut ctx = ctx.borrow_mut();
-                    if let Some(ref mut context) = *ctx {
-                        if !context.applied {
+                if !is_system_or_helper_class(&class_name, is_atom)
+                    && is_top_level(hwnd)
+                    && class_name == "Window Class"
+                {
+                    ACTIVE_CONTEXT.with(|ctx| {
+                        let mut ctx = ctx.borrow_mut();
+                        if let Some(ref mut context) = *ctx {
+                            if context.target.is_none() {
+                                println!(
+                                    "[CbtHook] 🎯 识别 Slint UI 顶层窗口 HWND({:?}) (Class: {:?})，等待 ACTIVATE 注入 DWM",
+                                    hwnd, class_name
+                                );
+                                context.target = Some(hwnd);
+                            }
+                        }
+                    });
+                } else {
+                    println!(
+                        "[CbtHook] 忽略窗口 HWND({:?}) (Class: {:?}, top_level: {}, is_atom: {})",
+                        hwnd, class_name, is_top_level(hwnd), is_atom
+                    );
+                }
+            }
+
+            // ── 阶段 2：ACTIVATE 时注入 DWM 属性并自卸载 ──
+            // ── Phase 2: inject DWM attributes on ACTIVATE and self-uninstall ──
+            HCBT_ACTIVATE => {
+                let should_apply = ACTIVE_CONTEXT.with(|ctx| {
+                    let ctx = ctx.borrow();
+                    ctx.as_ref()
+                        .map(|c| c.target == Some(hwnd) && !c.applied)
+                        .unwrap_or(false)
+                });
+
+                if should_apply {
+                    ACTIVE_CONTEXT.with(|ctx| {
+                        let mut ctx = ctx.borrow_mut();
+                        if let Some(ref mut context) = *ctx {
                             println!(
-                                "[CbtHook] 🎯 捕获 Slint UI 顶层窗口 HWND({:?}) (Class: {:?})，注入 DWM 属性",
-                                hwnd, class_name
+                                "[CbtHook] 🚀 ACTIVATE 阶段：为 HWND({:?}) 注入 DWM 属性",
+                                hwnd
                             );
-
-                            // 注入 DWM 属性
-                            // Inject DWM attributes
                             context.preset.apply(hwnd);
                             context.applied = true;
 
-                            // 立即卸载 Hook
-                            // Immediately uninstall the hook
+                            // 注入完成，立即卸载 Hook
+                            // Injection complete, immediately uninstall the hook
                             unsafe { UnhookWindowsHookEx(context.hook) };
                             println!("[CbtHook] Hook 已自卸载（DWM 注入完成）");
                         }
-                    }
-                });
-            } else {
-                println!(
-                    "[CbtHook] 忽略窗口 HWND({:?}) (Class: {:?}, top_level: {}, is_atom: {})",
-                    hwnd,
-                    class_name,
-                    is_top_level(hwnd),
-                    is_atom
-                );
+                    });
+                }
             }
+
+            _ => {}
         }
 
         unsafe { CallNextHookEx(0 as _, n_code, wparam, lparam) }

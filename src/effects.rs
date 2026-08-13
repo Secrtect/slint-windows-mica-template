@@ -1,20 +1,35 @@
 use crate::AppWindow;
 use slint::ComponentHandle;
 /// 尝试应用 Windows 11 Mica 透明效果
-/// 如果 CBT Hook 已在窗口创建时注入了 Mica，则仅设置 UI 标志位而不再重复调用 DWM API。
+///
+/// - `hook_will_handle = true`：CBT Hook 已安装，会在 `show()` 期间自动注入 DWM Mica，
+///   这里只需在 event loop 中设置 UI 侧的透明背景标志位。
+/// - `hook_will_handle = false`：Hook 未安装或失败，走原有的 `window_vibrancy` 路径。
 ///
 /// Try to apply Windows 11 Mica transparency effect.
-/// If the CBT Hook has already injected Mica at window creation, only set the UI flag
-/// without redundantly calling the DWM API.
-pub fn apply_mica_effect(app: &AppWindow, already_injected: bool) {
+///
+/// - `hook_will_handle = true`: CBT Hook is installed and will inject DWM Mica during `show()`,
+///   we only need to set the UI transparency flag in the event loop.
+/// - `hook_will_handle = false`: Hook not installed or failed, use the original `window_vibrancy` path.
+pub fn apply_mica_effect(app: &AppWindow, hook_will_handle: bool) {
     #[cfg(target_os = "windows")]
     {
-        if already_injected {
-            // CBT Hook 已在窗口创建时注入了 Mica，只需激活 UI 侧的透明背景开关
-            // CBT Hook has already injected Mica at creation, just activate the UI transparency flag
-            app.set_is_mica_active(true);
-            println!("Mica 已由 CBT Hook 预注入，跳过 event loop 路径");
-            // Mica already pre-injected by CBT Hook, skipping event loop path
+        if hook_will_handle {
+            // CBT Hook 会在 run() -> show() 期间通过 HCBT_CREATEWND 注入 DWM Mica 属性。
+            // 这里只需在 event loop 中激活 UI 侧的透明背景开关（让 Slint 背景透明以透出 DWM 材质）。
+            //
+            // The CBT Hook will inject DWM Mica via HCBT_CREATEWND during run() -> show().
+            // Here we only need to activate the UI transparency flag in the event loop
+            // (making the Slint background transparent so the DWM material shows through).
+            let app_weak = app.as_weak();
+            slint::invoke_from_event_loop(move || {
+                if let Some(app) = app_weak.upgrade() {
+                    app.set_is_mica_active(true);
+                    println!("Mica UI 透明标志已激活（DWM 属性由 CBT Hook 注入）");
+                    // Mica UI transparency flag activated (DWM attribute injected by CBT Hook)
+                }
+            })
+            .expect("Failed to queue Mica UI flag activation");
             return;
         }
 
