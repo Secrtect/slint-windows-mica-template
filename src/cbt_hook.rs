@@ -1,195 +1,26 @@
-//! 轻量级 CBT Hook 模块：在窗口创建瞬间注入 DWM 属性，杜绝多窗口闪烁
+//! 轻量级 CBT Hook 模块：在窗口创建瞬间提供 HWND，由调用方决定如何处理
 //!
-//! Lightweight CBT Hook module: injects DWM attributes at window creation to prevent
-//! multi-window flickering.
+//! Lightweight CBT Hook module: provides HWND at window creation,
+//! letting the caller decide what to do with it.
 //!
 //! # 设计原则 / Design Principles
 //!
-//! - **只注入 DWM 属性**（Mica / 暗色模式 / 圆角），不修改窗口样式 (`WS_STYLE`)
+//! - **只负责 Hook + 识别窗口 + 交付 HWND**，不包含任何 DWM 属性逻辑
 //! - **不干预 borderless 逻辑**，自绘标题栏按钮的 hover/click 功能完全保留
-//! - Hook 在注入完成后**立即自卸载**，不长期驻留
+//! - Hook 在回调完成后**立即自卸载**，不长期驻留
 //! - 使用 `windows-sys` crate（与项目现有依赖一致）
 
 #[cfg(target_os = "windows")]
 #[allow(dead_code, unused_imports)]
 mod inner {
     use std::cell::RefCell;
-    use std::mem::size_of;
     use windows_sys::Win32::Foundation::HWND;
-    use windows_sys::Win32::Graphics::Dwm::{
-        DwmSetWindowAttribute, DWMWA_SYSTEMBACKDROP_TYPE, DWMWA_USE_IMMERSIVE_DARK_MODE,
-        DWMWA_WINDOW_CORNER_PREFERENCE, DWMWCP_DONOTROUND, DWMWCP_ROUND, DWMWCP_ROUNDSMALL,
-    };
     use windows_sys::Win32::System::Threading::GetCurrentThreadId;
     use windows_sys::Win32::UI::WindowsAndMessaging::{
-        CallNextHookEx, GetClassNameW, GetParent, GetWindow, SetWindowsHookExW,
+        CallNextHookEx, GetParent, GetWindow, SetWindowsHookExW,
         UnhookWindowsHookEx, CBT_CREATEWNDW, GW_OWNER, HCBT_ACTIVATE, HCBT_CREATEWND,
         HHOOK, WH_CBT,
     };
-
-    // ────────────────────────────────────────────────────────────────────────
-    // DWM Backdrop 类型常量（windows-sys 0.52 未导出这些值，手动定义）
-    // DWM Backdrop type constants (not exported by windows-sys 0.52)
-    // ────────────────────────────────────────────────────────────────────────
-    const DWMSBT_NONE: u32 = 1;
-    const DWMSBT_MAINWINDOW: u32 = 2; // Mica
-    const DWMSBT_TRANSIENTWINDOW: u32 = 3; // Acrylic
-    const DWMSBT_TABBEDWINDOW: u32 = 4; // Tabbed
-
-    /// 未文档化的 DWMWA_MICA_EFFECT 属性（适用于旧版 Win11 22000-22522）
-    /// Undocumented DWMWA_MICA_EFFECT attribute (for older Win11 builds 22000-22522)
-    const DWMWA_MICA_EFFECT: u32 = 1029;
-
-    // ────────────────────────────────────────────────────────────────────────
-    // DwmPreset：声明式 DWM 属性预设
-    // DwmPreset: declarative DWM attribute preset
-    // ────────────────────────────────────────────────────────────────────────
-
-    /// DWM 背景材质类型
-    /// DWM backdrop material type
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum DwmBackdrop {
-        /// Mica 效果（Windows 11 推荐主窗口材质）
-        /// Mica effect (recommended for main windows on Windows 11)
-        Mica,
-        /// Acrylic 效果
-        /// Acrylic effect
-        Acrylic,
-        /// Tabbed 效果（用于标签页窗口）
-        /// Tabbed effect (for tabbed windows)
-        Tabbed,
-    }
-
-    /// 圆角偏好
-    /// Corner preference
-    #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-    pub enum CornerPreference {
-        /// 圆角 / Rounded
-        Round,
-        /// 小圆角 / Small rounded
-        RoundSmall,
-        /// 不圆角 / Not rounded
-        DoNotRound,
-    }
-
-    /// 声明式 DWM 属性预设，通过 Builder 模式配置
-    /// Declarative DWM attribute preset, configured via Builder pattern
-    #[derive(Debug, Clone, Default)]
-    pub struct DwmPreset {
-        backdrop: Option<DwmBackdrop>,
-        dark_mode: Option<bool>,
-        corner: Option<CornerPreference>,
-    }
-
-    impl DwmPreset {
-        /// 创建空预设
-        /// Create an empty preset
-        pub fn new() -> Self {
-            Self::default()
-        }
-
-        /// 启用 Mica 背景
-        /// Enable Mica backdrop
-        pub fn with_mica(mut self) -> Self {
-            self.backdrop = Some(DwmBackdrop::Mica);
-            self
-        }
-
-        /// 启用 Acrylic 背景
-        /// Enable Acrylic backdrop
-        pub fn with_acrylic(mut self) -> Self {
-            self.backdrop = Some(DwmBackdrop::Acrylic);
-            self
-        }
-
-        /// 启用 Tabbed 背景
-        /// Enable Tabbed backdrop
-        pub fn with_tabbed(mut self) -> Self {
-            self.backdrop = Some(DwmBackdrop::Tabbed);
-            self
-        }
-
-        /// 设置暗色模式
-        /// Set dark mode
-        pub fn with_dark_mode(mut self, enabled: bool) -> Self {
-            self.dark_mode = Some(enabled);
-            self
-        }
-
-        /// 设置圆角偏好
-        /// Set corner preference
-        pub fn with_corner(mut self, pref: CornerPreference) -> Self {
-            self.corner = Some(pref);
-            self
-        }
-
-        /// 将预设的 DWM 属性注入到指定 HWND
-        /// Apply the preset DWM attributes to the given HWND
-        fn apply(&self, hwnd: HWND) {
-            // 1. Backdrop (Mica / Acrylic / Tabbed)
-            if let Some(backdrop) = self.backdrop {
-                let backdrop_type: u32 = match backdrop {
-                    DwmBackdrop::Mica => DWMSBT_MAINWINDOW,
-                    DwmBackdrop::Acrylic => DWMSBT_TRANSIENTWINDOW,
-                    DwmBackdrop::Tabbed => DWMSBT_TABBEDWINDOW,
-                };
-                let result = unsafe {
-                    DwmSetWindowAttribute(
-                        hwnd,
-                        DWMWA_SYSTEMBACKDROP_TYPE as u32,
-                        &backdrop_type as *const _ as *const _,
-                        size_of::<u32>() as u32,
-                    )
-                };
-                if result != 0 && matches!(backdrop, DwmBackdrop::Mica) {
-                    // 在旧版 Win11（22000-22522）上回退到未文档化的 MICA_EFFECT
-                    // Fall back to undocumented MICA_EFFECT on older Win11 builds
-                    let enabled: u32 = 1;
-                    let _ = unsafe {
-                        DwmSetWindowAttribute(
-                            hwnd,
-                            DWMWA_MICA_EFFECT,
-                            &enabled as *const _ as *const _,
-                            size_of::<u32>() as u32,
-                        )
-                    };
-                }
-                println!("[CbtHook] 注入 Backdrop({:?}): HWND({:?})", backdrop, hwnd);
-            }
-
-            // 2. 暗色模式 / Dark mode
-            if let Some(dark) = self.dark_mode {
-                let value: u32 = if dark { 1 } else { 0 };
-                let _ = unsafe {
-                    DwmSetWindowAttribute(
-                        hwnd,
-                        DWMWA_USE_IMMERSIVE_DARK_MODE as u32,
-                        &value as *const _ as *const _,
-                        size_of::<u32>() as u32,
-                    )
-                };
-                println!("[CbtHook] 注入 DarkMode({}): HWND({:?})", dark, hwnd);
-            }
-
-            // 3. 圆角偏好 / Corner preference
-            if let Some(corner) = self.corner {
-                let pref: u32 = match corner {
-                    CornerPreference::Round => DWMWCP_ROUND as u32,
-                    CornerPreference::RoundSmall => DWMWCP_ROUNDSMALL as u32,
-                    CornerPreference::DoNotRound => DWMWCP_DONOTROUND as u32,
-                };
-                let _ = unsafe {
-                    DwmSetWindowAttribute(
-                        hwnd,
-                        DWMWA_WINDOW_CORNER_PREFERENCE as u32,
-                        &pref as *const _ as *const _,
-                        size_of::<u32>() as u32,
-                    )
-                };
-                println!("[CbtHook] 注入 Corner({:?}): HWND({:?})", corner, hwnd);
-            }
-        }
-    }
 
     // ────────────────────────────────────────────────────────────────────────
     // Hook 内部上下文（thread-local）
@@ -197,13 +28,15 @@ mod inner {
     // ────────────────────────────────────────────────────────────────────────
 
     struct HookContext {
-        preset: DwmPreset,
+        /// 捕获到 UI HWND 后执行的回调
+        /// Callback to execute when UI HWND is captured
+        on_hwnd_ready: Option<Box<dyn FnOnce(HWND)>>,
         hook: HHOOK,
         /// 已识别的目标 UI 窗口 HWND（在 HCBT_CREATEWND 中设置）
         /// Target UI window HWND identified during HCBT_CREATEWND
         target: Option<HWND>,
-        /// DWM 属性是否已成功注入（在 HCBT_ACTIVATE 中设置）
-        /// Whether DWM attributes have been successfully injected (set during HCBT_ACTIVATE)
+        /// 回调是否已执行（在 HCBT_ACTIVATE 中设置）
+        /// Whether the callback has been executed (set during HCBT_ACTIVATE)
         applied: bool,
     }
 
@@ -217,11 +50,11 @@ mod inner {
     // ────────────────────────────────────────────────────────────────────────
 
     /// CBT Hook 的 RAII 守卫
-    /// 安装后在 HCBT_CREATEWND 中自动注入 DWM 属性并卸载；
+    /// 安装后在 HCBT_ACTIVATE 中自动回调并卸载；
     /// 若 Drop 时 Hook 仍在（无窗口创建），也会自动卸载。
     ///
     /// RAII guard for the CBT Hook.
-    /// After installation, it automatically injects DWM attributes on HCBT_CREATEWND and uninstalls;
+    /// After installation, it automatically calls back on HCBT_ACTIVATE and uninstalls;
     /// if the hook is still active when dropped (no window was created), it also uninstalls.
     pub struct CbtHookGuard {
         hook: Option<HHOOK>,
@@ -232,12 +65,18 @@ mod inner {
         /// 在当前线程安装 WH_CBT Hook
         /// Install a WH_CBT hook on the current thread
         ///
+        /// `on_hwnd_ready`：Hook 捕获到 Slint UI 窗口的 HWND 后执行的回调。
+        /// 调用方可在此闭包中注入 DWM 属性或执行其他初始化操作。
+        ///
+        /// `on_hwnd_ready`: Callback executed when the hook captures the Slint UI window's HWND.
+        /// The caller can inject DWM attributes or perform other initialization in this closure.
+        ///
         /// 返回 `Ok(guard)` 表示安装成功。如果安装失败，返回 `Err` 但不影响程序运行，
         /// 调用方可降级到原有的 `invoke_from_event_loop` 路径。
         ///
         /// Returns `Ok(guard)` on success. On failure returns `Err`, but the caller can
         /// fall back to the existing `invoke_from_event_loop` path.
-        pub fn install(preset: DwmPreset) -> Result<Self, String> {
+        pub fn install(on_hwnd_ready: impl FnOnce(HWND) + 'static) -> Result<Self, String> {
             // 清理可能残留的上下文
             // Clean up any leftover context
             ACTIVE_CONTEXT.with(|ctx| {
@@ -254,7 +93,7 @@ mod inner {
 
             ACTIVE_CONTEXT.with(|ctx| {
                 *ctx.borrow_mut() = Some(HookContext {
-                    preset,
+                    on_hwnd_ready: Some(Box::new(on_hwnd_ready)),
                     hook,
                     target: None,
                     applied: false,
@@ -272,8 +111,8 @@ mod inner {
             })
         }
 
-        /// Hook 是否已成功注入了 DWM 属性
-        /// Whether the hook has successfully applied DWM attributes
+        /// Hook 是否已成功执行了回调
+        /// Whether the hook has successfully executed the callback
         pub fn was_applied(&self) -> bool {
             // 从 thread-local 同步最新状态（hook 回调可能已更新）
             // Sync latest state from thread-local (the hook callback may have updated it)
@@ -406,7 +245,7 @@ mod inner {
                         if let Some(ref mut context) = *ctx {
                             if context.target.is_none() {
                                 println!(
-                                    "[CbtHook] 🎯 识别 Slint UI 顶层窗口 HWND({:?}) (Class: {:?})，等待 ACTIVATE 注入 DWM",
+                                    "[CbtHook] 🎯 识别 Slint UI 顶层窗口 HWND({:?}) (Class: {:?})，等待 ACTIVATE 回调",
                                     hwnd, class_name
                                 );
                                 context.target = Some(hwnd);
@@ -421,8 +260,8 @@ mod inner {
                 }
             }
 
-            // ── 阶段 2：ACTIVATE 时注入 DWM 属性并自卸载 ──
-            // ── Phase 2: inject DWM attributes on ACTIVATE and self-uninstall ──
+            // ── 阶段 2：ACTIVATE 时执行回调并自卸载 ──
+            // ── Phase 2: execute callback on ACTIVATE and self-uninstall ──
             HCBT_ACTIVATE => {
                 let should_apply = ACTIVE_CONTEXT.with(|ctx| {
                     let ctx = ctx.borrow();
@@ -436,16 +275,21 @@ mod inner {
                         let mut ctx = ctx.borrow_mut();
                         if let Some(ref mut context) = *ctx {
                             println!(
-                                "[CbtHook] 🚀 ACTIVATE 阶段：为 HWND({:?}) 注入 DWM 属性",
+                                "[CbtHook] 🚀 ACTIVATE 阶段：为 HWND({:?}) 执行回调",
                                 hwnd
                             );
-                            context.preset.apply(hwnd);
+
+                            // 取出并执行回调
+                            // Take and execute the callback
+                            if let Some(callback) = context.on_hwnd_ready.take() {
+                                callback(hwnd);
+                            }
                             context.applied = true;
 
-                            // 注入完成，立即卸载 Hook
-                            // Injection complete, immediately uninstall the hook
+                            // 回调完成，立即卸载 Hook
+                            // Callback complete, immediately uninstall the hook
                             unsafe { UnhookWindowsHookEx(context.hook) };
-                            println!("[CbtHook] Hook 已自卸载（DWM 注入完成）");
+                            println!("[CbtHook] Hook 已自卸载（回调执行完成）");
                         }
                     });
                 }
@@ -470,31 +314,10 @@ pub use inner::*;
 /// No-op implementation for non-Windows platforms
 #[cfg(not(target_os = "windows"))]
 pub mod fallback {
-    #[derive(Debug, Clone, Default)]
-    pub struct DwmPreset;
-
-    impl DwmPreset {
-        pub fn new() -> Self {
-            Self
-        }
-        pub fn with_mica(self) -> Self {
-            self
-        }
-        pub fn with_acrylic(self) -> Self {
-            self
-        }
-        pub fn with_tabbed(self) -> Self {
-            self
-        }
-        pub fn with_dark_mode(self, _enabled: bool) -> Self {
-            self
-        }
-    }
-
     pub struct CbtHookGuard;
 
     impl CbtHookGuard {
-        pub fn install(_preset: DwmPreset) -> Result<Self, String> {
+        pub fn install(_on_hwnd_ready: impl FnOnce(()) + 'static) -> Result<Self, String> {
             Ok(Self)
         }
         pub fn was_applied(&self) -> bool {

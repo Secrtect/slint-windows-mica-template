@@ -2,13 +2,14 @@
 
 use std::error::Error;
 
-mod borderless;
+mod app_window;
 mod cbt_hook;
-mod controls;
 mod display;
 mod effects;
 
-use borderless::TitlebarSetup;
+use app_window::borderless::TitlebarSetup;
+use app_window::controls;
+use app_window::attributes;
 
 // 引入自动生成的 UI 模块
 // Include auto-generated UI modules
@@ -26,10 +27,18 @@ fn main() -> Result<(), Box<dyn Error>> {
     //    but lazily during show() inside app.run().
     //    So the hook guard must stay alive through run().
     //    The hook self-uninstalls after capturing the UI window; guard's Drop is just cleanup.
-    let dwm_preset = cbt_hook::DwmPreset::new()
-        .with_mica()
-        .with_dark_mode(true);
-    let hook_installed = cbt_hook::CbtHookGuard::install(dwm_preset);
+    let hook_installed = cbt_hook::CbtHookGuard::install(|hwnd| {
+        // 启动时读取系统当前主题色（浅色/深色）
+        // Read the current system theme (light/dark) at startup
+        let is_dark = attributes::is_system_dark_mode();
+
+        // CBT Hook 捕获到 HWND 后，通过闭包注入 DWM 属性
+        // When CBT Hook captures the HWND, inject DWM attributes via closure
+        attributes::DwmPreset::new()
+            .with_mica()
+            .with_dark_mode(is_dark)
+            .apply(hwnd);
+    });
     let hook_ok = hook_installed.is_ok();
     // _hook_guard 必须用 _ 前缀保留到 main() 结束，不能提前 drop！
     // _hook_guard must be kept alive until main() ends with _ prefix, do NOT drop early!
@@ -76,11 +85,11 @@ fn main() -> Result<(), Box<dyn Error>> {
 
     // 7. 运行主循环
     //    show() 在此期间被调用 -> CreateWindowExW 触发 HCBT_CREATEWND ->
-    //    Hook 捕获 "Window Class" 窗口 -> 注入 DWM 属性 -> 自卸载
+    //    Hook 捕获 "Window Class" 窗口 -> 执行闭包注入 DWM 属性 -> 自卸载
     //
     // 7. Run main loop
     //    show() is called during this -> CreateWindowExW triggers HCBT_CREATEWND ->
-    //    Hook captures "Window Class" window -> injects DWM attributes -> self-uninstalls
+    //    Hook captures "Window Class" window -> executes closure to inject DWM attributes -> self-uninstalls
     app.run()?;
 
     Ok(())

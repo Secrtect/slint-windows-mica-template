@@ -1,4 +1,4 @@
-use crate::borderless::WindowFrame;
+use super::borderless::WindowFrame;
 use crate::{AppWindow, WindowControls};
 use slint::ComponentHandle;
 
