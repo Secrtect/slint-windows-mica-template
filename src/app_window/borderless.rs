@@ -158,6 +158,33 @@ impl WindowFrame {
             // 阴影直接用 winit 封装好的 API 恢复，圆角控制已移交至 attributes.rs(DwmPreset) 统一管理
             // Shadow via winit's built-in Windows API wrappers, rounded corners control is delegated to attributes.rs(DwmPreset)
             window.set_undecorated_shadow(true);
+
+            // Win10 阴影修复：winit 的 set_undecorated_shadow 仅添加 WS_CAPTION 样式，
+            // Win11 DWM 会自动绘制阴影，但 Win10 DWM 需要 DwmExtendFrameIntoClientArea
+            // 设置非零 margin 才会为无边框窗口绘制阴影。这里用经典的 1px 底部 margin 技巧。
+            //
+            // Win10 shadow fix: winit's set_undecorated_shadow only adds WS_CAPTION style.
+            // Win11 DWM draws shadows automatically, but Win10 DWM requires
+            // DwmExtendFrameIntoClientArea with non-zero margin to draw shadows
+            // for borderless windows. Use the classic 1px bottom margin trick.
+            if !crate::sys_info::is_win11() {
+                use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
+                use windows::Win32::UI::Controls::MARGINS;
+
+                let margins = MARGINS {
+                    cxLeftWidth: 0,
+                    cxRightWidth: 0,
+                    cyTopHeight: 0,
+                    cyBottomHeight: 1,
+                };
+                if let Some(hwnd) = Self::get_hwnd(window) {
+                    unsafe {
+                        if let Err(e) = DwmExtendFrameIntoClientArea(hwnd, &margins) {
+                            warn!("Win10 DwmExtendFrameIntoClientArea (shadow fix) failed: {e}");
+                        }
+                    }
+                }
+            }
             // 安装自定义窗口过程（子类化）
             // Install custom window procedure (subclassing)
             Self::install_custom_frame(hwnd, self.state.clone());
