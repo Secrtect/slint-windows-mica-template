@@ -3,6 +3,8 @@
 use std::cell::RefCell;
 use std::error::Error;
 use std::rc::Rc;
+use std::sync::{Arc, Mutex};
+use windows::Win32::Foundation::HWND;
 
 mod app_window;
 mod custom_terminal_window;
@@ -14,13 +16,29 @@ pub mod window;
 slint::include_modules!();
 
 fn main() -> Result<(), Box<dyn Error>> {
-    // 1. 安装主窗口 CBT Hook（在 CreateWindowExW 瞬间注入属性，杜绝闪烁）
-    //    主窗口属性在 src/app_window/attributes.rs 中 DIY 配置
+    // ── 共享 Frame 持有器，用于 CBT Hook 回调中同步安装子类化 + 阴影
+    //    主窗口使用 app.run() 而非显式 show()，窗口创建发生在 run() 内部。
+    //    CBT Hook 在 CreateWindowExW 瞬间捕获 HWND 并通过 apply_to_hwnd 同步安装，
+    //    窗口首帧绘制前一切就绪，彻底消除阴影/子类化延迟 ──
+    let frame_holder: Arc<Mutex<Option<window::WindowFrame<AppWindow>>>> =
+        Arc::new(Mutex::new(None));
+
+    // 1. 安装主窗口 CBT Hook（在 CreateWindowExW 瞬间注入 DWM 属性 + 子类化 + 阴影）
     let hook_installed = window::CbtHookGuard::install(
         Some("Slint标准组件全家桶".to_string()),
-        |hwnd| {
-            let attrs = app_window::attributes::get_attributes();
-            attrs.apply(hwnd);
+        {
+            let frame_holder = Arc::clone(&frame_holder);
+            move |hwnd| {
+                // DWM 属性注入（Mica、暗色模式、圆角等）
+                let attrs = app_window::attributes::get_attributes();
+                attrs.apply(hwnd);
+
+                // 子类化 + 阴影（通过 HWND 同步安装，无需等 winit 就绪）
+                let hwnd_struct = HWND(hwnd as *mut std::ffi::c_void);
+                if let Some(ref frame) = *frame_holder.lock().unwrap() {
+                    frame.apply_to_hwnd(hwnd_struct);
+                }
+            }
         },
     );
     let hook_ok = hook_installed.is_ok();
@@ -36,10 +54,14 @@ fn main() -> Result<(), Box<dyn Error>> {
     // 2. 创建主窗口实例
     let app = AppWindow::new()?;
 
-    // 3. 配置主窗口（无边框框架、居中定位、Mica 特效、控件绑定）
-    let _frame = app_window::setup(&app, hook_ok)?;
+    // 3. 创建无边框框架（不调度 apply，由 CBT Hook 同步安装）
+    let frame = app_window::create_frame(&app);
+    *frame_holder.lock().unwrap() = Some(frame.clone());
 
-    // 4. 绑定“打开自绘终端窗口”按钮
+    // 4. 配置主窗口（居中定位、Mica 特效、控件绑定）
+    app_window::setup(&app, &frame, hook_ok);
+
+    // 5. 绑定"打开自绘终端窗口"按钮
     let custom_terminal_handle: Rc<RefCell<Option<CustomTerminalWindow>>> = Rc::new(RefCell::new(None));
     let handle_custom = custom_terminal_handle.clone();
     app.on_open_custom_terminal_window(move || {
@@ -54,7 +76,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    // 5. 绑定“打开原生终端窗口”按钮
+    // 6. 绑定"打开原生终端窗口"按钮
     let native_terminal_handle: Rc<RefCell<Option<NativeTerminalWindow>>> = Rc::new(RefCell::new(None));
     let handle_native = native_terminal_handle.clone();
     app.on_open_native_terminal_window(move || {
@@ -69,7 +91,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         }
     });
 
-    // 6. 运行主循环
+    // 7. 运行主循环
     app.run()?;
 
     Ok(())
