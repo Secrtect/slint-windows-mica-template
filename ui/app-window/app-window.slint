@@ -28,8 +28,12 @@ export {
 }
 
 // 导入并导出两种终端窗口组件，供 Rust 端在 slint::include_modules!() 中生成对应的结构体
-import { CustomTerminalWindow } from "../custom-terminal-window/custom-terminal-window.slint";
-import { NativeTerminalWindow } from "../native-terminal-window/native-terminal-window.slint";
+import {
+    CustomTerminalWindow,
+} from "../custom-terminal-window/custom-terminal-window.slint";
+import {
+    NativeTerminalWindow,
+} from "../native-terminal-window/native-terminal-window.slint";
 export { CustomTerminalWindow, NativeTerminalWindow }
 export component AppWindow inherits Window {
     // ==================== 导出初始宽高属性 ====================
@@ -52,6 +56,9 @@ export component AppWindow inherits Window {
     no-frame: true;
     min-width: 600px;
     min-height: 500px;
+
+    // 窗口间通信回调
+    callback open-custom-terminal-window();
 
     // 状态数据管理
     in-out property <string> input-text: "";
@@ -99,7 +106,7 @@ export component AppWindow inherits Window {
                                 Button {
                                     text: "打开自绘终端窗口";
                                     primary: true;
-                                    // clicked => { }
+                                    clicked => { root.open-custom-terminal-window(); }
                                 }
 
                                 Button {

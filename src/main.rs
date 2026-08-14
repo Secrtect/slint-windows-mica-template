@@ -1,9 +1,12 @@
 #![cfg_attr(not(debug_assertions), windows_subsystem = "windows")]
 
 use std::error::Error;
+use std::cell::RefCell;
+use std::rc::Rc;
 
 mod app_window;
 mod cbt_hook;
+mod custom_terminal_window;
 mod display;
 mod effects;
 mod sys_info;
@@ -84,11 +87,33 @@ fn main() -> Result<(), Box<dyn Error>> {
         show_close: true,
     });
 
-    // 7. 运行主循环
+    // 8. 绑定“打开自绘终端窗口”按钮
+    //    用 Rc<RefCell<Option<T>>> 持有终端窗口 handle，防止提前 drop 导致窗口销毁
+    //
+    // 8. Bind "Open Custom Terminal Window" button
+    //    Use Rc<RefCell<Option<T>>> to hold the terminal window handle,
+    //    preventing premature drop that would destroy the window
+    let terminal_handle: Rc<RefCell<Option<CustomTerminalWindow>>> = Rc::new(RefCell::new(None));
+    let handle = terminal_handle.clone();
+    app.on_open_custom_terminal_window(move || {
+        match custom_terminal_window::open() {
+            Ok(terminal) => {
+                // 存储新窗口 handle（若已有旧实例会被替换并 drop 销毁）
+                // Store new handle (old instance, if any, is replaced and dropped)
+                *handle.borrow_mut() = Some(terminal);
+                println!("[Main] 自绘终端窗口已打开");
+            }
+            Err(e) => {
+                eprintln!("[Main] 打开自绘终端窗口失败: {}", e);
+            }
+        }
+    });
+
+    // 9. 运行主循环
     //    show() 在此期间被调用 -> CreateWindowExW 触发 HCBT_CREATEWND ->
     //    Hook 捕获 "Window Class" 窗口 -> 执行闭包注入 DWM 属性 -> 自卸载
     //
-    // 7. Run main loop
+    // 9. Run main loop
     //    show() is called during this -> CreateWindowExW triggers HCBT_CREATEWND ->
     //    Hook captures "Window Class" window -> executes closure to inject DWM attributes -> self-uninstalls
     app.run()?;

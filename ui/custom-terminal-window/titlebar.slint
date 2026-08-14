@@ -10,8 +10,8 @@ export component TerminalTitlebar inherits Rectangle {
     callback double-click();
 
     in-out property <bool> maximized: false;
-    in-out property <bool> show-minimize: false;
-    in-out property <bool> show-maximize: false;
+    in-out property <bool> show-minimize: true;
+    in-out property <bool> show-maximize: true;
     in-out property <bool> show-close: true;
 
     // 激活状态（自适应深浅色模式与激活调色）
