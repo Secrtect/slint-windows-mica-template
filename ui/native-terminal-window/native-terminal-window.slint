@@ -1,0 +1,172 @@
+import { Button, ScrollView, Palette } from "std-widgets.slint";
+import { TerminalTitlebar } from "./titlebar.slint";
+
+// 单条终端日志数据项
+export component NativeTerminalWindow inherits Window {
+
+    // 窗口尺寸与首选配置
+    in-out property <length> init-width: 580px;
+    in-out property <length> init-height: 420px;
+
+    preferred-width: init-width;
+    preferred-height: init-height;
+    min-width: 480px;
+    min-height: 300px;
+
+    // Mica 状态与背景适配
+    in-out property <bool> is-mica-active: false;
+    background: transparent;
+
+    title: "运行终端日志 (Console Output)";
+    no-frame: true;
+
+    // 实时终端日志数据列表 (控制台输出行)
+    in-out property <[string]> logs: [];
+
+    callback close-requested();
+    callback copy-log();
+    callback drag();
+
+    // 根卡片外壳 (带圆角剪切)
+    Rectangle {
+        width: 100%;
+        height: 100%;
+        border-radius: 10px;
+        border-width: 1px;
+        border-color: Palette.border;
+        background: root.is-mica-active ? transparent : Palette.background;
+        clip: true;
+
+        VerticalLayout {
+            padding: 0px;
+            spacing: 0px;
+
+            // 1. 沉浸式标题栏 (36px, 含 3 个自绘控制按钮与微调标题)
+            TerminalTitlebar {
+                title: root.title;
+                close-requested => {
+                    root.close-requested();
+                }
+                drag => {
+                    root.drag();
+                }
+            }
+
+            // 2. 日志容器与底部操作区域
+            VerticalLayout {
+                padding-left: 16px;
+                padding-right: 16px;
+                padding-top: 6px;
+                padding-bottom: 16px;
+                spacing: 12px;
+                vertical-stretch: 1;
+
+                // 终端日志列表面板 (自动适应深浅色模式)
+                log-box := Rectangle {
+                    vertical-stretch: 1;
+                    border-radius: 8px;
+                    border-width: 1px;
+                    border-color: Palette.color-scheme == ColorScheme.dark ? #ffffff18 : #00000012;
+                    background: Palette.color-scheme == ColorScheme.dark ? #1e1e1e : #f8f9fa;
+
+                    ScrollView {
+                        width: 100%;
+                        height: 100%;
+
+                        VerticalLayout {
+                            padding-left: 14px;
+                            padding-right: 14px;
+                            padding-top: 12px;
+                            padding-bottom: 12px;
+                            spacing: 4px;
+
+                            for line in root.logs: Text {
+                                text: line;
+                                font-size: 12px;
+                                font-family: "Consolas";
+                                color: Palette.foreground;
+                                wrap: word-wrap;
+                            }
+                        }
+                    }
+                }
+
+                // 3. 底部按钮组 (统一 36px 高度与边框模型)
+                HorizontalLayout {
+                    alignment: end;
+                    spacing: 8px;
+
+                    // 复制日志按钮 (Secondary 样式 - 使用系统 Palette 调色板)
+                    copy-btn := Rectangle {
+                        width: 96px;
+                        height: 36px;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: Palette.border;
+                        background: Palette.color-scheme == ColorScheme.dark ? #2d2d2d : #ffffff;
+
+                        // 悬停/按压遮罩
+                        Rectangle {
+                            border-radius: 3px;
+                            background: copy-touch.pressed
+                                ? (Palette.color-scheme == ColorScheme.dark ? #ffffff15 : #00000018)
+                                : (copy-touch.has-hover
+                                ? (Palette.color-scheme == ColorScheme.dark ? #ffffff0d : #0000000a)
+                                : transparent);
+                            animate background { duration: 80ms; }
+                        }
+
+                        copy-touch := TouchArea {
+                            clicked => {
+                                root.copy-log();
+                            }
+                        }
+
+                        Text {
+                            text: "复制日志";
+                            font-size: 13px;
+                            font-family: "Microsoft YaHei UI";
+                            color: Palette.foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+
+                    // 关闭按钮 (Primary 样式 - 使用系统 Palette 调色板)
+                    close-dialog-btn := Rectangle {
+                        width: 80px;
+                        height: 36px;
+                        border-radius: 4px;
+                        border-width: 1px;
+                        border-color: transparent;
+                        background: Palette.accent-background;
+
+                        // 悬停/按压遮罩
+                        Rectangle {
+                            border-radius: 3px;
+                            background: close-dialog-touch.pressed
+                                ? #00000033
+                                : (close-dialog-touch.has-hover ? #ffffff26 : transparent);
+                            animate background { duration: 80ms; }
+                        }
+
+                        close-dialog-touch := TouchArea {
+                            clicked => {
+                                root.close-requested();
+                            }
+                        }
+
+                        Text {
+                            text: "关闭";
+                            font-size: 13px;
+                            font-family: "Microsoft YaHei UI";
+                            color: Palette.accent-foreground;
+                            horizontal-alignment: center;
+                            vertical-alignment: center;
+                        }
+                    }
+                }
+            }
+        }
+    }
+}

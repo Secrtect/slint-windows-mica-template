@@ -1,0 +1,304 @@
+import { Palette } from "std-widgets.slint";
+
+export component TerminalTitlebar inherits Rectangle {
+    in property <string> title: "原生终端日志 (Console Output)";
+
+    callback close-requested();
+    callback minimize-requested();
+    callback maximize-requested();
+    callback drag();
+    callback double-click();
+
+    in-out property <bool> maximized: false;
+    in-out property <bool> show-minimize: false;
+    in-out property <bool> show-maximize: false;
+    in-out property <bool> show-close: true;
+
+    // 激活状态（自适应深浅色模式与激活调色）
+    in-out property <bool> is-active: true;
+
+    private property <color> foreground-color:
+        root.is-active
+        ? (Palette.color-scheme == ColorScheme.dark ? #ffffff : #191919)
+        : (Palette.color-scheme == ColorScheme.dark ? #ffffff66 : #00000066);
+
+    private property <color> btn-hover-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff1a : #0000000f;
+    private property <color> btn-pressed-bg: Palette.color-scheme == ColorScheme.dark ? #ffffff0d : #00000008;
+
+    height: 36px;
+    background: transparent;
+
+    HorizontalLayout {
+        padding: 0px;
+        spacing: 0px;
+
+        // 左侧可拖拽与标题内容区域 (微调的 >_ 终端图标与标题)
+        drag-area := TouchArea {
+            horizontal-stretch: 1;
+            moved => {
+                if (self.pressed) {
+                    root.drag();
+                }
+            }
+
+            double-clicked => {
+                root.double-click();
+            }
+
+            HorizontalLayout {
+                padding-left: 14px;
+                padding-right: 8px;
+                spacing: 8px;
+                alignment: start;
+
+                // 终端 Glyph 图标 >_
+                Text {
+                    text: ">_";
+                    font-size: 15px;
+                    font-family: "Consolas";
+                    font-weight: 700;
+                    color: Palette.accent-background;
+                    vertical-alignment: center;
+                }
+
+                // 标题文字
+                Text {
+                    text: root.title;
+                    font-size: 13px;
+                    font-family: "Microsoft YaHei UI";
+                    font-weight: 600;
+                    color: root.foreground-color;
+                    vertical-alignment: center;
+                    overflow: elide;
+                }
+            }
+        }
+
+        // 1. 最小化按钮
+        if root.show-minimize: minimize-btn := Rectangle {
+            width: 46px;
+            background: min-touch.pressed ? root.btn-pressed-bg :
+                min-touch.has-hover ? root.btn-hover-bg : transparent;
+            animate background { duration: 60ms; }
+
+            min-touch := TouchArea {
+                clicked => {
+                    root.minimize-requested();
+                }
+            }
+
+            Rectangle {
+                width: 10px;
+                height: 1px;
+                background: root.foreground-color;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+            }
+        }
+
+        // 2. 最大化 / 还原按钮
+        if root.show-maximize: maximize-btn := Rectangle {
+            width: 46px;
+            background: max-touch.pressed ? root.btn-pressed-bg :
+                max-touch.has-hover ? root.btn-hover-bg : transparent;
+            animate background { duration: 60ms; }
+
+            max-touch := TouchArea {
+                clicked => {
+                    root.maximize-requested();
+                }
+            }
+
+            if !root.maximized: Path {
+                width: 10px;
+                height: 10px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                stroke: root.foreground-color;
+                stroke-width: 1px;
+
+                MoveTo {
+                    x: 1.5;
+                    y: 0;
+                }
+
+                LineTo {
+                    x: 8.5;
+                    y: 0;
+                }
+
+                QuadraticTo {
+                    control-x: 10;
+                    control-y: 0;
+                    x: 10;
+                    y: 1.5;
+                }
+
+                LineTo {
+                    x: 10;
+                    y: 8.5;
+                }
+
+                QuadraticTo {
+                    control-x: 10;
+                    control-y: 10;
+                    x: 8.5;
+                    y: 10;
+                }
+
+                LineTo {
+                    x: 1.5;
+                    y: 10;
+                }
+
+                QuadraticTo {
+                    control-x: 0;
+                    control-y: 10;
+                    x: 0;
+                    y: 8.5;
+                }
+
+                LineTo {
+                    x: 0;
+                    y: 1.5;
+                }
+
+                QuadraticTo {
+                    control-x: 0;
+                    control-y: 0;
+                    x: 1.5;
+                    y: 0;
+                }
+            }
+
+            if root.maximized: Path {
+                width: 10px;
+                height: 10px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                stroke: root.foreground-color;
+                stroke-width: 1px;
+
+                MoveTo {
+                    x: 1.5;
+                    y: 2;
+                }
+
+                LineTo {
+                    x: 6.5;
+                    y: 2;
+                }
+
+                QuadraticTo {
+                    control-x: 8;
+                    control-y: 2;
+                    x: 8;
+                    y: 3.5;
+                }
+
+                LineTo {
+                    x: 8;
+                    y: 8.5;
+                }
+
+                QuadraticTo {
+                    control-x: 8;
+                    control-y: 10;
+                    x: 6.5;
+                    y: 10;
+                }
+
+                LineTo {
+                    x: 1.5;
+                    y: 10;
+                }
+
+                QuadraticTo {
+                    control-x: 0;
+                    control-y: 10;
+                    x: 0;
+                    y: 8.5;
+                }
+
+                LineTo {
+                    x: 0;
+                    y: 3.5;
+                }
+
+                QuadraticTo {
+                    control-x: 0;
+                    control-y: 2;
+                    x: 1.5;
+                    y: 2;
+                }
+
+                MoveTo {
+                    x: 2.5;
+                    y: 0;
+                }
+
+                LineTo {
+                    x: 8.5;
+                    y: 0;
+                }
+
+                QuadraticTo {
+                    control-x: 10;
+                    control-y: 0;
+                    x: 10;
+                    y: 1.5;
+                }
+
+                LineTo {
+                    x: 10;
+                    y: 7.5;
+                }
+            }
+        }
+
+        // 3. 关闭按钮
+        if root.show-close: close-btn := Rectangle {
+            width: 46px;
+            background: close-touch.pressed ? #c42b1cc8 :
+                close-touch.has-hover ? #c42b1c : transparent;
+            animate background { duration: 60ms; }
+
+            close-touch := TouchArea {
+                clicked => {
+                    root.close-requested();
+                }
+            }
+
+            Path {
+                width: 10px;
+                height: 10px;
+                x: (parent.width - self.width) / 2;
+                y: (parent.height - self.height) / 2;
+                stroke: (close-touch.has-hover || close-touch.pressed)
+                    ? #ffffff : root.foreground-color;
+                stroke-width: 1px;
+                animate stroke { duration: 60ms; }
+
+                MoveTo {
+                    x: 0;
+                    y: 0;
+                }
+
+                LineTo {
+                    x: 1;
+                    y: 1;
+                }
+
+                MoveTo {
+                    x: 1;
+                    y: 0;
+                }
+
+                LineTo {
+                    x: 0;
+                    y: 1;
+                }
+            }
+        }
+    }
+}
