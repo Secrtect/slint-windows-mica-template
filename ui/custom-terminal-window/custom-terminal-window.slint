@@ -23,6 +23,15 @@ export component CustomTerminalWindow inherits Window {
     // 实时终端日志数据列表 (控制台输出行)
     in-out property <[string]> logs: [];
 
+    // 标题栏按钮 hover/pressed 状态（由 Rust 侧 Win32 子类化驱动）
+    // Titlebar button hover/pressed states (driven by Rust-side Win32 subclassing)
+    in-out property <bool> titlebar-min-hover: false;
+    in-out property <bool> titlebar-min-pressed: false;
+    in-out property <bool> titlebar-max-hover: false;
+    in-out property <bool> titlebar-max-pressed: false;
+    in-out property <bool> titlebar-close-hover: false;
+    in-out property <bool> titlebar-close-pressed: false;
+
     callback close-requested();
     callback copy-log();
     callback drag();
@@ -34,6 +43,12 @@ export component CustomTerminalWindow inherits Window {
         // 1. 沉浸式标题栏 (36px, 含 3 个自绘控制按钮与微调标题)
         TerminalTitlebar {
             title: root.title;
+            min-hover: root.titlebar-min-hover;
+            min-pressed: root.titlebar-min-pressed;
+            max-hover: root.titlebar-max-hover;
+            max-pressed: root.titlebar-max-pressed;
+            close-hover: root.titlebar-close-hover;
+            close-pressed: root.titlebar-close-pressed;
             close-requested => {
                 root.close-requested();
             }

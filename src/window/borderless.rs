@@ -252,6 +252,44 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
         });
     }
 
+    /// 仅使用 HWND 安装子类化（用于 CBT Hook 等无法访问 winit 窗口的场景）
+    /// Install subclassing using only HWND (for CBT Hook scenarios where winit window is unavailable)
+    pub fn apply_to_hwnd(&self, hwnd: HWND) {
+        // Win10 阴影修复
+        if !crate::sys_info::is_win11() {
+            use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
+            use windows::Win32::UI::Controls::MARGINS;
+
+            let margins = MARGINS {
+                cxLeftWidth: 0,
+                cxRightWidth: 0,
+                cyTopHeight: 0,
+                cyBottomHeight: 1,
+            };
+            unsafe {
+                if let Err(e) = DwmExtendFrameIntoClientArea(hwnd, &margins) {
+                    warn!("Win10 DwmExtendFrameIntoClientArea failed: {e}");
+                }
+            }
+        }
+
+        // 安装自定义窗口过程（子类化）
+        Self::install_custom_frame(hwnd, self.state.clone());
+
+        // 触发 SWP_FRAMECHANGED 通知 DWM
+        unsafe {
+            let _ = SetWindowPos(
+                hwnd,
+                None,
+                0,
+                0,
+                0,
+                0,
+                SWP_NOMOVE | SWP_NOSIZE | SWP_NOZORDER | SWP_FRAMECHANGED | SWP_NOACTIVATE,
+            );
+        }
+    }
+
     /// 从 winit 窗口获取 Windows HWND
     fn get_hwnd(window: &winit::window::Window) -> Option<HWND> {
         use winit::raw_window_handle::{HasWindowHandle, RawWindowHandle};
