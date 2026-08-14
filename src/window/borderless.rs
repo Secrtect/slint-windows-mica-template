@@ -197,6 +197,14 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
         });
     }
 
+    /// 启用无边框窗口阴影（DWM 渲染）
+    /// Enable undecorated window shadow (DWM-rendered)
+    pub fn set_undecorated_shadow(&self) {
+        self.with_winit_window(|window| {
+            window.set_undecorated_shadow(true);
+        });
+    }
+
     /// 在持有 winit 原生窗口的情况下执行闭包
     fn with_winit_window<R>(&self, f: impl FnOnce(&winit::window::Window) -> R) -> Option<R> {
         self.state
@@ -255,8 +263,9 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
     /// 仅使用 HWND 安装子类化（用于 CBT Hook 等无法访问 winit 窗口的场景）
     /// Install subclassing using only HWND (for CBT Hook scenarios where winit window is unavailable)
     pub fn apply_to_hwnd(&self, hwnd: HWND) {
-        // Win10 阴影修复
-        if !crate::sys_info::is_win11() {
+        // 无边框窗口阴影修复（所有 Windows 版本均需，否则 DWM 不渲染阴影）
+        // Undecorated window shadow fix (required on all Windows versions, otherwise DWM won't render shadow)
+        {
             use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
             use windows::Win32::UI::Controls::MARGINS;
 
@@ -268,7 +277,7 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
             };
             unsafe {
                 if let Err(e) = DwmExtendFrameIntoClientArea(hwnd, &margins) {
-                    warn!("Win10 DwmExtendFrameIntoClientArea failed: {e}");
+                    warn!("DwmExtendFrameIntoClientArea failed: {e}");
                 }
             }
         }

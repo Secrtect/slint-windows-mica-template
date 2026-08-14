@@ -108,7 +108,9 @@ pub fn open() -> Result<CustomTerminalWindow, slint::PlatformError> {
         }
     });
 
-    // ── 7. 显示窗口（触发 CreateWindowExW → CBT Hook → apply_to_hwnd） ──
+    // ── 7. 显示窗口（触发 CreateWindowExW → CBT Hook → apply_to_hwnd）
+    //    apply_to_hwnd 中已通过 DwmExtendFrameIntoClientArea 启用阴影，
+    //    阴影在窗口显示前就已就绪，无需额外调度 ──
     terminal.show()?;
 
     Ok(terminal)
