@@ -224,8 +224,11 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
             // 1. 恢复无边框窗口阴影
             window.set_undecorated_shadow(true);
 
-            // 2. Win10 阴影修复
-            if !crate::sys_info::is_win11() {
+            // 2. 无边框窗口阴影修复（DwmExtendFrameIntoClientArea 1px 延伸触发 DWM 阴影渲染）
+            //    Undecorated window shadow fix — extends frame by 1px to trigger DWM shadow rendering
+            //    必须使用此技巧，否则 Win11 上垂直最大化（贴靠顶部）会导致阴影效果消失
+            //    Required: without this trick, vertical maximization (snap to top) on Win11 causes shadow to disappear
+            {
                 use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
                 use windows::Win32::UI::Controls::MARGINS;
 
@@ -237,7 +240,7 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
                 };
                 unsafe {
                     if let Err(e) = DwmExtendFrameIntoClientArea(hwnd, &margins) {
-                        warn!("Win10 DwmExtendFrameIntoClientArea failed: {e}");
+                        warn!("DwmExtendFrameIntoClientArea failed: {e}");
                     }
                 }
             }
@@ -265,6 +268,8 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
     pub fn apply_to_hwnd(&self, hwnd: HWND) {
         // 无边框窗口阴影修复（所有 Windows 版本均需，否则 DWM 不渲染阴影）
         // Undecorated window shadow fix (required on all Windows versions, otherwise DWM won't render shadow)
+        // 必须使用此技巧，否则 Win11 上垂直最大化（贴靠顶部）会导致阴影效果消失
+        // Required: without this trick, vertical maximization (snap to top) on Win11 causes shadow to disappear
         {
             use windows::Win32::Graphics::Dwm::DwmExtendFrameIntoClientArea;
             use windows::Win32::UI::Controls::MARGINS;
