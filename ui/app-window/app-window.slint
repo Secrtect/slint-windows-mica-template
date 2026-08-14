@@ -59,6 +59,7 @@ export component AppWindow inherits Window {
 
     // 窗口间通信回调
     callback open-custom-terminal-window();
+    callback open-native-terminal-window();
 
     // 状态数据管理
     in-out property <string> input-text: "";
@@ -112,7 +113,7 @@ export component AppWindow inherits Window {
                                 Button {
                                     text: "打开原生终端窗口";
                                     primary: true;
-                                    // clicked => { }
+                                    clicked => { root.open-native-terminal-window(); }
                                 }
 
                                 CheckBox {

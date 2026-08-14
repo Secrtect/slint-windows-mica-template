@@ -1,44 +1,41 @@
-//! custom_terminal_window 子模块：与 ui/custom-terminal-window/ 一一对应
+//! native_terminal_window 子模块：与 ui/native-terminal-window/ 一一对应
 //!
-//! 提供自绘终端窗口的创建、CBT Hook 防闪烁注入、回调绑定与 Mica 视觉效果。
+//! 提供原生终端窗口的创建、CBT Hook 防闪烁注入、回调绑定与 Mica 视觉效果。
 //! 窗口属性在 ./attributes.rs 中自由 DIY。
 
 pub mod attributes;
 
-use crate::CustomTerminalWindow;
+use crate::NativeTerminalWindow;
 use crate::window::{
     CbtHookGuard, TitlebarSetup, apply_mica_effect, center_component_on_active_monitor,
 };
 use slint::ComponentHandle;
 
 /// 终端窗口标题（必须与 .slint 文件中 `title` 属性完全一致，用于 CBT Hook 匹配）
-const TERMINAL_TITLE: &str = "自绘终端日志 (Console Output)";
+const NATIVE_TERMINAL_TITLE: &str = "原生终端日志 (Console Output)";
 
-/// 创建并显示自绘终端窗口（含 CBT Hook 防闪烁）
-pub fn open() -> Result<CustomTerminalWindow, slint::PlatformError> {
-    // ── 1. 安装 CBT Hook（按 TERMINAL_TITLE 匹配并在 CreateWindowExW 瞬间注入属性） ──
+/// 创建并显示原生终端窗口（含 CBT Hook 防闪烁）
+pub fn open() -> Result<NativeTerminalWindow, slint::PlatformError> {
+    // ── 1. 安装 CBT Hook ──
     let hook_installed = CbtHookGuard::install(
-        Some(TERMINAL_TITLE.to_string()),
+        Some(NATIVE_TERMINAL_TITLE.to_string()),
         move |hwnd| {
-            // 从本窗口专属的 attributes.rs 读取并注入属性
             let attrs = attributes::get_attributes();
             attrs.apply(hwnd);
-            println!("[CustomTerminal] 🎯 CBT Hook 成功捕获窗口并注入属性");
+            println!("[NativeTerminal] 🎯 CBT Hook 成功捕获窗口并注入属性");
         },
     );
     let hook_ok = hook_installed.is_ok();
 
     if let Ok(guard) = hook_installed {
-        println!("[CustomTerminal] CBT Hook 已安装，等待 show() 捕获窗口");
-        // 注意：CbtHook 在 HCBT_ACTIVATE 触发时会自动自卸载。
-        // 使用 mem::forget 防止 guard 在 open() 函数返回时提前 Drop。
+        println!("[NativeTerminal] CBT Hook 已安装，等待 show() 捕获窗口");
         std::mem::forget(guard);
     } else {
-        println!("[CustomTerminal] CBT Hook 安装失败，将以 fallback 方式运行");
+        println!("[NativeTerminal] CBT Hook 安装失败，将以 fallback 方式运行");
     }
 
-    // ── 2. 创建 CustomTerminalWindow 实例 ──
-    let terminal = CustomTerminalWindow::new()?;
+    // ── 2. 创建 NativeTerminalWindow 实例 ──
+    let terminal = NativeTerminalWindow::new()?;
 
     // ── 3. 挂载通用无边框拉伸边框与阴影支持 ──
     let frame = terminal.as_weak().setup_borderless_simple()?;
@@ -54,30 +51,27 @@ pub fn open() -> Result<CustomTerminalWindow, slint::PlatformError> {
     apply_mica_effect(&terminal, |t| t.set_is_mica_active(true), hook_ok);
 
     // ── 6. 绑定 UI 回调 ──
-    // 6a. 关闭按钮 → 隐藏窗口
     let weak = terminal.as_weak();
     terminal.on_close_requested(move || {
         if let Some(t) = weak.upgrade() {
             let _ = t.window().hide();
-            println!("[CustomTerminal] 窗口已隐藏");
+            println!("[NativeTerminal] 窗口已隐藏");
         }
     });
 
-    // 6b. 标题栏拖拽
     let frame_drag = frame.clone();
     terminal.on_drag(move || {
         frame_drag.drag();
     });
 
-    // 6c. 复制日志按钮
     let weak_log = terminal.as_weak();
     terminal.on_copy_log(move || {
         if let Some(_t) = weak_log.upgrade() {
-            println!("[CustomTerminal] 复制日志（功能预留）");
+            println!("[NativeTerminal] 复制日志（功能预留）");
         }
     });
 
-    // ── 7. 显示窗口（触发 CreateWindowExW） ──
+    // ── 7. 显示窗口 ──
     terminal.show()?;
 
     Ok(terminal)
