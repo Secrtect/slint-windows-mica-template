@@ -17,9 +17,6 @@ i-slint-backend-winit = { version = "1.17.1" }
 winit = { version = "0.30" }
 tracing = "0.1"
 
-[target.'cfg(windows)'.dependencies]
-window-vibrancy = "0.5"
-
 # main.rs 中 GetDpiForSystem 需要 Win32_UI_HiDpi 特性
 # cbt_hook.rs 中需要 Win32_Graphics_Dwm 和 Win32_System_Threading
 windows-sys = { version = "0.52", features = [
@@ -29,6 +26,7 @@ windows-sys = { version = "0.52", features = [
   "Win32_System_Threading",
   "Win32_System_Registry",
   "Win32_Foundation",
+  "Win32_System_SystemInformation",
 ] }
 
 # 2. 为 src/borderless.rs 补充 windows crate（注意：它与上面的 windows-sys 是两个独立的库）

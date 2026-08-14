@@ -6,7 +6,7 @@ mod app_window;
 mod cbt_hook;
 mod display;
 mod effects;
-
+mod sys_info;
 use app_window::borderless::TitlebarSetup;
 use app_window::controls;
 use app_window::attributes;

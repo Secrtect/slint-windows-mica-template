@@ -1,5 +1,6 @@
 use crate::AppWindow;
 use slint::ComponentHandle;
+
 /// 尝试应用 Windows 11 Mica 透明效果
 ///
 /// - `hook_will_handle = true`：CBT Hook 已安装，会在 `show()` 期间自动注入 DWM Mica，
@@ -15,6 +16,14 @@ pub fn apply_mica_effect(app: &AppWindow, hook_will_handle: bool) {
     #[cfg(target_os = "windows")]
     {
         if hook_will_handle {
+            // 检查系统是否支持 Mica (Windows 11 build 22000+)
+            // Check if system supports Mica
+            if !crate::sys_info::is_win11() {
+                println!("系统不支持 Mica (Win10或更低版本)，已降级为系统自适应纯色背景");
+                // The system does not support Mica (Win10 or lower), falling back to solid background.
+                return;
+            }
+
             // CBT Hook 会在 run() -> show() 期间通过 HCBT_CREATEWND 注入 DWM Mica 属性。
             // 这里只需在 event loop 中激活 UI 侧的透明背景开关（让 Slint 背景透明以透出 DWM 材质）。
             //
@@ -33,23 +42,8 @@ pub fn apply_mica_effect(app: &AppWindow, hook_will_handle: bool) {
             return;
         }
 
-        // Fallback 路径：CBT Hook 未使用或失败，走原有的 event loop 注入
-        // Fallback path: CBT Hook not used or failed, use the original event loop injection
-        let app_weak = app.as_weak();
-        slint::invoke_from_event_loop(move || {
-            if let Some(app) = app_weak.upgrade() {
-                let handle = app.window().window_handle();
-
-                if let Err(e) = window_vibrancy::apply_mica(&handle, None) {
-                    println!("应用 Mica 失败: {:?}，已降级为系统自适应纯色背景", e);
-                    // Mica application failed, falling back to system adaptive solid background
-                } else {
-                    app.set_is_mica_active(true);
-                    println!("成功应用 Mica 效果（通过 event loop fallback 路径）");
-                    // Mica effect applied successfully (via event loop fallback path)
-                }
-            }
-        })
-        .expect("Failed to queue event loop initialization");
+        // Fallback 路径：CBT Hook 未使用或失败，直接回退到系统自适应纯色背景
+        // Fallback path: CBT Hook not used or failed, fallback to system adaptive solid background directly.
+        println!("CBT Hook 注入未生效，已直接降级为系统自适应纯色背景");
     }
 }
