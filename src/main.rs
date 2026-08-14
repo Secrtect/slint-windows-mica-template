@@ -37,6 +37,7 @@ fn main() -> Result<(), Box<dyn Error>> {
         attributes::DwmPreset::new()
             .with_mica()
             .with_dark_mode(is_dark)
+            .with_corner(attributes::CornerPreference::Round)
             .apply(hwnd);
     });
     let hook_ok = hook_installed.is_ok();

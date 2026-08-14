@@ -12,7 +12,7 @@ use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
 use windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MONITOR_DEFAULTTONEAREST, MONITORINFO, MonitorFromWindow,
 };
-use winit::platform::windows::{CornerPreference, WindowExtWindows};
+use winit::platform::windows::WindowExtWindows;
 use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::Input::KeyboardAndMouse::{
@@ -155,9 +155,8 @@ impl WindowFrame {
                 warn!("Failed to extract HWND from winit window");
                 return;
             };
-            // 圆角 + 阴影直接用 winit 封装好的 API，无需手写 DWM FFI
-            // Rounded corners and shadow via winit's built-in Windows API wrappers
-            window.set_corner_preference(CornerPreference::Round);
+            // 阴影直接用 winit 封装好的 API 恢复，圆角控制已移交至 attributes.rs(DwmPreset) 统一管理
+            // Shadow via winit's built-in Windows API wrappers, rounded corners control is delegated to attributes.rs(DwmPreset)
             window.set_undecorated_shadow(true);
             // 安装自定义窗口过程（子类化）
             // Install custom window procedure (subclassing)
