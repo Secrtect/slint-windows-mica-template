@@ -44,6 +44,15 @@ impl TitlebarAdapter<CustomTerminalWindow> for TerminalTitlebarAdapter {
         }
     }
 
+    /// 由 Win32 子类化 `WM_NCACTIVATE` 消息驱动，实现失去焦点时标题栏文字/按钮变淡
+    /// Driven by Win32 subclassing WM_NCACTIVATE message,
+    /// implements the fade effect when the window loses focus
+    fn set_active(&self, component: &CustomTerminalWindow, is_active: bool) {
+        if component.get_titlebar_is_active() != is_active {
+            component.set_titlebar_is_active(is_active);
+        }
+    }
+
     /// 由 Win32 子类化 `WM_NCMOUSEHOVER` 等消息驱动，更新标题栏按钮的 hover 视觉状态
     /// Driven by Win32 subclassing messages (WM_NCMOUSEHOVER etc.),
     /// updates the titlebar button hover visual state

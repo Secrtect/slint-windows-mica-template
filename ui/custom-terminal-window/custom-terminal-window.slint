@@ -32,6 +32,10 @@ export component CustomTerminalWindow inherits Window {
     in-out property <bool> titlebar-close-hover: false;
     in-out property <bool> titlebar-close-pressed: false;
 
+    // 标题栏激活状态（由 Win32 WM_NCACTIVATE 驱动，用于失去焦点时变淡）
+    // Titlebar active state (driven by Win32 WM_NCACTIVATE, for fade effect when inactive)
+    in-out property <bool> titlebar-is-active: true;
+
     callback close-requested();
     callback copy-log();
     callback drag();
@@ -43,6 +47,7 @@ export component CustomTerminalWindow inherits Window {
         // 1. 沉浸式标题栏 (36px, 含 3 个自绘控制按钮与微调标题)
         TerminalTitlebar {
             title: root.title;
+            is-active: root.titlebar-is-active;
             min-hover: root.titlebar-min-hover;
             min-pressed: root.titlebar-min-pressed;
             max-hover: root.titlebar-max-hover;
