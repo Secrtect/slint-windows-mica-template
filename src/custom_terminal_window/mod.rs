@@ -100,7 +100,20 @@ pub fn open() -> Result<CustomTerminalWindow, slint::PlatformError> {
         frame_drag.drag();
     });
 
-    // 6c. 复制日志按钮
+    // 6c. 最大化状态变化监听（切换标题栏最大化/还原图标）
+    // Monitor maximized state changes (toggle titlebar maximize/restore icon)
+    frame.on_maximized_changed(move |terminal, is_max| {
+        terminal.set_titlebar_maximized(is_max);
+    });
+
+    // 6d. 双击标题栏切换最大化/还原
+    // Double-click titlebar to toggle maximize/restore
+    let frame_dbl = frame.clone();
+    terminal.on_double_click(move || {
+        frame_dbl.toggle_maximized();
+    });
+
+    // 6e. 复制日志按钮
     let weak_log = terminal.as_weak();
     terminal.on_copy_log(move || {
         if let Some(_t) = weak_log.upgrade() {

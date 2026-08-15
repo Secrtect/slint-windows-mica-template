@@ -36,9 +36,14 @@ export component CustomTerminalWindow inherits Window {
     // Titlebar active state (driven by Win32 WM_NCACTIVATE, for fade effect when inactive)
     in-out property <bool> titlebar-is-active: true;
 
+    // 标题栏最大化状态（由 Win32 WM_SIZE 驱动，用于切换最大化/还原图标）
+    // Titlebar maximized state (driven by Win32 WM_SIZE, toggles maximize/restore icon)
+    in-out property <bool> titlebar-maximized: false;
+
     callback close-requested();
     callback copy-log();
     callback drag();
+    callback double-click();
 
     VerticalLayout {
         padding: 0px;
@@ -48,6 +53,7 @@ export component CustomTerminalWindow inherits Window {
         TerminalTitlebar {
             title: root.title;
             is-active: root.titlebar-is-active;
+            maximized: root.titlebar-maximized;
             min-hover: root.titlebar-min-hover;
             min-pressed: root.titlebar-min-pressed;
             max-hover: root.titlebar-max-hover;
@@ -59,6 +65,9 @@ export component CustomTerminalWindow inherits Window {
             }
             drag => {
                 root.drag();
+            }
+            double-click => {
+                root.double-click();
             }
         }
 
