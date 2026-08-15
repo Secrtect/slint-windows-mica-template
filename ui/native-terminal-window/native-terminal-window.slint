@@ -15,10 +15,10 @@ export component NativeTerminalWindow inherits Window {
 
     // Mica 状态与背景适配
     in-out property <bool> is-mica-active: false;
-    background: transparent;
+    background: self.is-mica-active ? transparent : Palette.background;
 
     title: "原生终端日志 (Console Output)";
-    no-frame: true;
+    no-frame: false;
 
     // 实时终端日志数据列表 (控制台输出行)
     in-out property <[string]> logs: [];
@@ -26,6 +26,7 @@ export component NativeTerminalWindow inherits Window {
     callback close-requested();
     callback copy-log();
     callback drag();
+    callback double-click();
 
     // 根卡片外壳 (带圆角剪切)
     Rectangle {
@@ -41,14 +42,14 @@ export component NativeTerminalWindow inherits Window {
             padding: 0px;
             spacing: 0px;
 
-            // 1. 沉浸式标题栏 (36px, 含 3 个自绘控制按钮与微调标题)
+            // 1. 沉浸式标题栏 (36px, 仅拖拽区，按钮由 DWM 系统原生绘制)
             TerminalTitlebar {
                 title: root.title;
-                close-requested => {
-                    root.close-requested();
-                }
                 drag => {
                     root.drag();
+                }
+                double-click => {
+                    root.double-click();
                 }
             }
 
