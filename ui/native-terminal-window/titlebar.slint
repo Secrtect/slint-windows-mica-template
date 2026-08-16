@@ -66,5 +66,11 @@ export component TerminalTitlebar inherits Rectangle {
                 }
             }
         }
+
+        // 右侧 DWM 原生按钮占位区域（系统原生绘制与交互，Slint 保持透明不拦截）
+        Rectangle {
+            width: 140px;
+            background: transparent;
+        }
     }
 }

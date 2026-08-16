@@ -17,12 +17,16 @@ use windows::Win32::Graphics::Dwm::{
     DwmDefWindowProc, DwmExtendFrameIntoClientArea, DwmGetWindowAttribute,
     DWMWA_CAPTION_BUTTON_BOUNDS,
 };
+use windows::Win32::Graphics::Gdi::{
+    GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
+};
 use windows::Win32::UI::Controls::MARGINS;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DefWindowProcW, GetWindowRect, HTCAPTION, HTCLIENT, IsZoomed, NCCALCSIZE_PARAMS, SetWindowPos,
-    SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_NCCALCSIZE,
-    WM_NCDESTROY, WM_NCHITTEST,
+    DefWindowProcW, GetWindowRect, HTCAPTION, HTCLIENT, HTCLOSE, HTMAXBUTTON, HTMINBUTTON,
+    IsZoomed, NCCALCSIZE_PARAMS, SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
+    SWP_NOSIZE, SWP_NOZORDER, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE,
+    WM_NCMOUSEMOVE,
 };
 use crate::NativeTerminalWindow;
 
@@ -30,11 +34,27 @@ use crate::NativeTerminalWindow;
 /// Titlebar height in logical pixels
 const TITLEBAR_HEIGHT: i32 = 36;
 
+/// 获取窗口所在显示器的工作区矩形
+fn get_monitor_work_area(hwnd: HWND) -> Option<RECT> {
+    unsafe {
+        let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
+        let mut monitor_info = MONITORINFO {
+            cbSize: size_of::<MONITORINFO>() as u32,
+            ..Default::default()
+        };
+        if GetMonitorInfoW(monitor, &mut monitor_info).as_bool() {
+            Some(monitor_info.rcWork)
+        } else {
+            None
+        }
+    }
+}
+
 /// DWM 原生按钮窗口框架
 ///
 /// 安装简化子类化 proc，核心逻辑：
 /// 1. WM_NCCALCSIZE — 扩展客户区覆盖标题栏，DWM 在客户区之上绘制原生按钮
-/// 2. WM_NCHITTEST — 标题栏区域返回 HTCAPTION，边缘区域返回拉伸码
+/// 2. WM_NCHITTEST — 标题栏区域返回 HTCAPTION，边缘区域返回拉伸码，按钮区域精确透传/兜底
 /// 3. 1px 阴影修复 — DwmExtendFrameIntoClientArea
 pub struct NativeCaptionFrame {
     weak: slint::Weak<NativeTerminalWindow>,
@@ -98,7 +118,6 @@ impl NativeCaptionFrame {
             }
         }
 
-
         // 2. 安装简化子类化 proc（仅处理 WM_NCCALCSIZE / WM_NCHITTEST / WM_NCDESTROY）
         let ref_data = self as *const Self as usize;
         unsafe {
@@ -148,9 +167,9 @@ impl NativeCaptionFrame {
         }
     }
 
-    /// 简化子类化窗口过程：仅处理 WM_NCCALCSIZE（扩展客户区）和 WM_NCHITTEST（标题栏拖拽）
-    /// Simplified subclassing proc: only handles WM_NCCALCSIZE (extend client area)
-    /// and WM_NCHITTEST (titlebar drag)
+    /// 简化子类化窗口过程：处理 WM_NCCALCSIZE（扩展客户区）和 WM_NCHITTEST（标题栏与原生按钮）
+    /// Simplified subclassing proc: handles WM_NCCALCSIZE (extend client area)
+    /// and WM_NCHITTEST (titlebar and native buttons)
     unsafe extern "system" fn native_caption_proc(
         hwnd: HWND,
         msg: u32,
@@ -159,16 +178,6 @@ impl NativeCaptionFrame {
         uid_subclass: usize,
         _ref_data: usize,
     ) -> LRESULT {
-        // 首次调用时打印消息确认子类化已生效
-        // One-time log to confirm subclassing is active
-        {
-            use std::sync::atomic::{AtomicBool, Ordering};
-            static FIRST_CALL: AtomicBool = AtomicBool::new(true);
-            if FIRST_CALL.swap(false, Ordering::Relaxed) {
-                println!("[NativeCaption] ✅ 子类化 proc 已激活! 首条消息: 0x{:04X}", msg);
-            }
-        }
-
         // 先让 DWM 处理 hit-test 及按钮交互消息（关键！否则 DWM 不会绘制/响应原生按钮）
         // Let DWM process hit-test and button interaction messages first
         {
@@ -184,76 +193,110 @@ impl NativeCaptionFrame {
             WM_NCCALCSIZE if wparam.0 != 0 => {
                 let params = unsafe { &mut *(lparam.0 as *mut NCCALCSIZE_PARAMS) };
                 let original_top = params.rgrc[0].top;
-                let original_left = params.rgrc[0].left;
-                let original_right = params.rgrc[0].right;
-                let original_bottom = params.rgrc[0].bottom;
-                println!("[NativeCaption] WM_NCCALCSIZE 触发! original rgrc[0] = ({}, {}, {}, {})",
-                    original_left, original_top, original_right, original_bottom);
 
-                if unsafe { IsZoomed(hwnd) }.as_bool() {
-                    // 最大化时：使用标准 Monitor Work Area 避免任务栏遮挡
-                    // Maximized: use standard monitor work area to avoid taskbar overlap
-                    let monitor = unsafe {
-                        windows::Win32::Graphics::Gdi::MonitorFromWindow(
-                            hwnd,
-                            windows::Win32::Graphics::Gdi::MONITOR_DEFAULTTONEAREST,
-                        )
-                    };
-                    let mut monitor_info = windows::Win32::Graphics::Gdi::MONITORINFO {
-                        cbSize: size_of::<windows::Win32::Graphics::Gdi::MONITORINFO>() as u32,
-                        ..Default::default()
-                    };
-                    if unsafe {
-                        windows::Win32::Graphics::Gdi::GetMonitorInfoW(monitor, &mut monitor_info)
-                    }
-                    .as_bool()
-                    {
-                        params.rgrc[0] = monitor_info.rcWork;
-                        println!("[NativeCaption]    maximized → work_area = ({}, {}, {}, {})",
-                            monitor_info.rcWork.left, monitor_info.rcWork.top,
-                            monitor_info.rcWork.right, monitor_info.rcWork.bottom);
-                    }
-                } else {
-                    let _ = unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
-                    let after_default = params.rgrc[0];
-                    println!("[NativeCaption]    after DefWindowProcW → rgrc[0] = ({}, {}, {}, {})",
-                        after_default.left, after_default.top, after_default.right, after_default.bottom);
-                    params.rgrc[0].top = original_top;
-                    println!("[NativeCaption]    restored top → rgrc[0] = ({}, {}, {}, {})",
-                        params.rgrc[0].left, params.rgrc[0].top,
-                        params.rgrc[0].right, params.rgrc[0].bottom);
-                }
-                return LRESULT(0);
+                // 无论是窗口化还是最大化，均先调用 DefWindowProcW 让 Windows/DWM 计算标准非客户区布局
+                let _ = unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+
+                // 统一将 top 恢复至 original_top，使客户区延伸至窗口最顶部（offset=0）
+                // 这样 DWM 能识别到标题栏扩展，从而在窗口化和最大化下均原生接管按钮 hit-test 与悬停高亮动画
+                params.rgrc[0].top = original_top;
+                LRESULT(0)
             }
 
-            // 非客户区命中测试：DWM 按钮已在 DwmDefWindowProc 中处理，
-            // DefWindowProcW 处理拉伸边框，标题栏区域返回 HTCAPTION 允许拖拽
+            // 非客户区命中测试：DWM 按钮优先由 DwmDefWindowProc 处理；
+            // 兜底逻辑按屏幕物理坐标精准计算三大按钮区域，确保最大化时悬停与点击体验与原生窗口完全一致；
+            // 标题栏其余区域返回 HTCAPTION 允许拖拽与双击；窗口边缘返回拉伸代码。
             WM_NCHITTEST => {
-                // DefWindowProcW 处理拉伸边框（left/right/bottom 非客户区由 NCCALCSIZE 保留）
-                let hit = unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
-                if hit != LRESULT(HTCLIENT as isize) {
-                    return hit;
-                }
-
-                // 转换为窗口相对坐标（客户区已通过 NCCALCSIZE 扩展至窗口顶部）
+                let x = (lparam.0 & 0xFFFF) as i16 as i32;
                 let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
+                let is_zoomed = unsafe { IsZoomed(hwnd) }.as_bool();
+
                 let mut rect = RECT::default();
                 if unsafe { GetWindowRect(hwnd, &mut rect) }.is_err() {
                     return LRESULT(HTCLIENT as isize);
                 }
-                let cy = y - rect.top;
 
-                // 标题栏区域：返回 HTCAPTION 允许拖拽
-                // DWM 按钮的 hit-test 已由 DwmDefWindowProc 在上方处理
-                if cy >= 0 && cy < TITLEBAR_HEIGHT {
+                // 确定标题栏顶部及右侧边界（基于屏幕坐标）
+                let (btn_top, btn_bottom, btn_right) = if is_zoomed {
+                    let work_area = get_monitor_work_area(hwnd).unwrap_or(rect);
+                    (work_area.top, work_area.top + TITLEBAR_HEIGHT, work_area.right)
+                } else {
+                    (rect.top, rect.top + TITLEBAR_HEIGHT, rect.right)
+                };
+
+                // DWMWA_CAPTION_BUTTON_BOUNDS 获取按钮总宽度（若获取失败则使用 140px 标准宽度）
+                let mut btn_rect = RECT::default();
+                let btn_area_w = if unsafe {
+                    DwmGetWindowAttribute(
+                        hwnd,
+                        DWMWA_CAPTION_BUTTON_BOUNDS,
+                        &mut btn_rect as *mut _ as _,
+                        size_of::<RECT>() as u32,
+                    )
+                }
+                .is_ok() && btn_rect.right > btn_rect.left
+                {
+                    btn_rect.right - btn_rect.left
+                } else {
+                    140
+                };
+
+                let btn_left = btn_right - btn_area_w;
+
+                // 1. 优先判定三大原生按钮区域（Close / Maximize / Minimize）
+                if y >= btn_top && y < btn_bottom && x >= btn_left && x <= btn_right {
+                    let single_btn_w = (btn_area_w / 3).max(1);
+                    let dist_from_right = btn_right - x;
+                    if dist_from_right < single_btn_w {
+                        return LRESULT(HTCLOSE as isize);
+                    } else if dist_from_right < single_btn_w * 2 {
+                        return LRESULT(HTMAXBUTTON as isize);
+                    } else {
+                        return LRESULT(HTMINBUTTON as isize);
+                    }
+                }
+
+                // 2. 标题栏区域：返回 HTCAPTION 允许拖拽和双击最大化/还原
+                if y >= btn_top && y < btn_bottom && x < btn_left {
                     return LRESULT(HTCAPTION as isize);
+                }
+
+                // 3. 窗口边缘拉伸判定（仅窗口化状态）
+                if !is_zoomed {
+                    let hit = unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
+                    if hit != LRESULT(HTCLIENT as isize) {
+                        return hit;
+                    }
                 }
 
                 LRESULT(HTCLIENT as isize)
             }
 
+            // 非客户区鼠标移动：注册 TrackMouseEvent 开启鼠标离开监听，确保按钮悬停高亮能正确刷新与清除
+            WM_NCMOUSEMOVE => {
+                let mut tme = windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT {
+                    cbSize: size_of::<windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT>() as u32,
+                    dwFlags: windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT_FLAGS(
+                        windows::Win32::UI::Input::KeyboardAndMouse::TME_NONCLIENT.0
+                            | windows::Win32::UI::Input::KeyboardAndMouse::TME_LEAVE.0,
+                    ),
+                    hwndTrack: hwnd,
+                    dwHoverTime: 0,
+                };
+                unsafe {
+                    let _ = windows::Win32::UI::Input::KeyboardAndMouse::TrackMouseEvent(&mut tme);
+                }
+                unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
+            }
+
+            // 鼠标离开非客户区：通知 DWM 与系统底层清理按钮高亮状态
+            WM_NCMOUSELEAVE => unsafe {
+                let mut dwm_result = LRESULT(0);
+                let _ = DwmDefWindowProc(hwnd, msg, wparam, lparam, &mut dwm_result);
+                DefSubclassProc(hwnd, msg, wparam, lparam)
+            },
+
             // 窗口销毁时注销子类化
-            // Uninstall subclassing on window destroy
             WM_NCDESTROY => {
                 println!("[NativeCaption] WM_NCDESTROY — 注销子类化");
                 unsafe {
