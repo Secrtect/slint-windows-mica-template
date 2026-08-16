@@ -12,8 +12,11 @@ use crate::platform::{
 };
 use crate::platform::borderless::WindowFrame;
 use crate::platform::controls::TitlebarButtons;
+use crate::windows::CloseBehavior;
 use controls::TerminalTitlebarAdapter;
 use slint::ComponentHandle;
+use std::cell::RefCell;
+use std::rc::Rc;
 use std::sync::{Arc, Mutex};
 use ::windows::Win32::Foundation::HWND;
 
@@ -21,7 +24,16 @@ use ::windows::Win32::Foundation::HWND;
 const TERMINAL_TITLE: &str = "自绘终端日志 (Console Output)";
 
 /// 创建并显示自绘终端窗口（含 CBT Hook 防闪烁 + 子类化安装）
-pub fn open() -> Result<CustomTerminalWindow, slint::PlatformError> {
+///
+/// # 参数 - Parameters
+/// * `handle` - 外部传入的窗口句柄持有器，用于在关闭时销毁窗口组件
+///   External handle holder for destroying the window component on close
+/// * `close_behavior` - 窗口关闭行为（隐藏 vs 销毁）
+///   Window close behavior (hide vs destroy)
+pub fn open(
+    handle: Rc<RefCell<Option<CustomTerminalWindow>>>,
+    close_behavior: CloseBehavior,
+) -> Result<(), slint::PlatformError> {
     // ── 共享 Frame 持有器：CBT Hook 回调需要访问 WindowFrame 来安装子类化
     //    因为 CBT Hook 在 HCBT_ACTIVATE 时已经有 HWND，但 winit 窗口尚未就绪，
     //    所以不能用 frame.apply()（需要 winit），而是用 frame.apply_to_hwnd(hwnd) ──
@@ -86,11 +98,24 @@ pub fn open() -> Result<CustomTerminalWindow, slint::PlatformError> {
 
     // ── 6. 绑定 UI 回调 ──
     // 6a. 关闭按钮（⚠️ 标题栏按钮由 Win32 子类化接管，此回调作为 fallback）
+    //     CloseBehavior::Destroy → 不调用 hide()，让 Slint 自然销毁窗口
+    //     CloseBehavior::Hide → 调用 hide()，隐藏窗口并保留组件实例
     let weak = terminal.as_weak();
     terminal.on_close_requested(move || {
-        if let Some(t) = weak.upgrade() {
-            let _ = t.window().hide();
-            println!("[CustomTerminal] 窗口已隐藏（via Slint callback fallback）");
+        match close_behavior {
+            CloseBehavior::Hide => {
+                if let Some(t) = weak.upgrade() {
+                    let _ = t.window().hide();
+                    println!("[CustomTerminal] 窗口已隐藏 (Hide)");
+                }
+            }
+            CloseBehavior::Destroy => {
+                // 不调用 hide()，让 Slint 自然销毁窗口（释放原生窗口资源）
+                // Don't call hide(), let Slint destroy the window naturally (release native window resources)
+                // 注意：旧组件句柄仍保留在 handle 中（已无窗口），下次打开时会被新组件覆盖
+                // Note: old component handle remains in holder (windowless), will be overwritten on next open
+                println!("[CustomTerminal] 窗口已关闭，将自然销毁 (Destroy)");
+            }
         }
     });
 
@@ -126,5 +151,9 @@ pub fn open() -> Result<CustomTerminalWindow, slint::PlatformError> {
     //    阴影在窗口显示前就已就绪，无需额外调度 ──
     terminal.show()?;
 
-    Ok(terminal)
+    // ── 8. 将窗口组件存入外部句柄持有器 ──
+    //    Store the window component into the external handle holder
+    *handle.borrow_mut() = Some(terminal);
+
+    Ok(())
 }

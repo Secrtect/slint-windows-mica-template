@@ -60,12 +60,13 @@ fn main() -> Result<(), Box<dyn Error>> {
     windows::app::setup(&app, &frame, hook_ok);
 
     // 5. 绑定"打开自绘终端窗口"按钮
+    //    默认行为：关闭窗口时销毁（释放资源）
+    //    如需改为隐藏窗口（保留状态），将 CloseBehavior::Destroy 改为 CloseBehavior::Hide
     let custom_terminal_handle: Rc<RefCell<Option<CustomTerminalWindow>>> = Rc::new(RefCell::new(None));
     let handle_custom = custom_terminal_handle.clone();
     app.on_open_custom_terminal_window(move || {
-        match windows::custom_terminal::open() {
-            Ok(terminal) => {
-                *handle_custom.borrow_mut() = Some(terminal);
+        match windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Destroy) {
+            Ok(()) => {
                 println!("[Main] 自绘终端窗口已打开");
             }
             Err(e) => {
@@ -78,9 +79,8 @@ fn main() -> Result<(), Box<dyn Error>> {
     let native_terminal_handle: Rc<RefCell<Option<NativeTerminalWindow>>> = Rc::new(RefCell::new(None));
     let handle_native = native_terminal_handle.clone();
     app.on_open_native_terminal_window(move || {
-        match windows::native_terminal::open() {
-            Ok(terminal) => {
-                *handle_native.borrow_mut() = Some(terminal);
+        match windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Destroy) {
+            Ok(()) => {
                 println!("[Main] 原生终端窗口已打开");
             }
             Err(e) => {
