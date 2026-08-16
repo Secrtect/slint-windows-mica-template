@@ -52,10 +52,10 @@ Slint 是一个极其轻量、现代且声明式的 Rust GUI 框架。但在 Win
 
 ### 5. 🛠️ 模块化解耦架构
 - UI 与 Rust 逻辑严格按模块对应：
-  - `src/app_window/` ↔ `ui/app-window/`
-  - `src/custom_terminal_window/` ↔ `ui/custom-terminal-window/`
-  - `src/native_terminal_window/` ↔ `ui/native-terminal-window/`
-- 通用能力下沉至 `src/window/`，包含属性配置、无边框子类化、CBT Hook 守卫、多屏定位等，易于复用与 DIY。
+  - `src/windows/app/` ↔ `ui/app-window/`
+  - `src/windows/custom_terminal/` ↔ `ui/custom-terminal-window/`
+  - `src/windows/native_terminal/` ↔ `ui/native-terminal-window/`
+- 通用 Windows 平台能力下沉至 `src/platform/`，包含属性配置、无边框子类化、CBT Hook 守卫、多屏定位等，易于复用与 DIY。
 
 ---
 
@@ -65,16 +65,20 @@ Slint 是一个极其轻量、现代且声明式的 Rust GUI 框架。但在 Win
 slint-windows-mica-template/
 ├── src/
 │   ├── main.rs                   # 程序入口，窗口初始化与 CBT Hook 调度
-│   ├── app_window/               # 主窗口逻辑（自绘标题栏控件）
-│   ├── custom_terminal_window/   # 自绘终端子窗口逻辑
-│   ├── native_terminal_window/   # 原生 DWM 按钮子窗口逻辑与子类化
-│   └── window/                   # 核心底层基础设施
-│       ├── attributes.rs         # 窗口属性（Mica、暗色、圆角）
-│       ├── borderless.rs         # Win32 无边框窗口子类化与消息处理
-│       ├── cbt_hook.rs           # CBT Hook 防闪烁瞬时注入守卫
-│       ├── effects.rs            # Mica 透明度与特效联动
-│       ├── monitor.rs            # 多显示器鼠标跟随定位计算
-│       └── sys_info.rs           # Windows 系统版本与深浅色检测
+│   ├── sys_info.rs               # Windows 系统版本与深浅色检测
+│   ├── platform/                 # Windows 平台级窗口交互基础设施
+│   │   ├── attributes.rs         # 窗口属性（Mica、暗色、圆角、逃生通道）
+│   │   ├── borderless.rs         # Win32 无边框窗口子类化与 Snap Layouts 消息处理
+│   │   ├── controls.rs           # 标题栏控制适配器与按钮交互
+│   │   ├── display.rs            # 多显示器鼠标跟随智能居中定位计算
+│   │   ├── effects.rs            # Mica 透明度与特效联动
+│   │   ├── hook.rs               # CBT Hook 防闪烁瞬时注入守卫
+│   │   └── mod.rs
+│   └── windows/                  # 具体的 UI 窗口业务实现
+│       ├── app/                  # 主窗口逻辑（自绘标题栏控件）
+│       ├── custom_terminal/      # 自绘终端子窗口逻辑
+│       ├── native_terminal/      # 原生 DWM 按钮子窗口逻辑与子类化
+│       └── mod.rs
 ├── ui/
 │   ├── app-window/               # 主窗口 Slint UI
 │   ├── custom-terminal-window/   # 自绘终端子窗口 Slint UI

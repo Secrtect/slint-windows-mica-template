@@ -53,10 +53,10 @@ This project provides a robust, modular, and fully tested Win32/DWM subclassing 
 
 ### 5. 🛠️ Modular & Decoupled Architecture
 - 1-to-1 mapping between UI components and Rust modules:
-  - `src/app_window/` ↔ `ui/app-window/`
-  - `src/custom_terminal_window/` ↔ `ui/custom-terminal-window/`
-  - `src/native_terminal_window/` ↔ `ui/native-terminal-window/`
-- Reusable primitives organized under `src/window/` (attributes, borderless engine, CBT Hook guard, monitor helpers, system theme detection).
+  - `src/windows/app/` ↔ `ui/app-window/`
+  - `src/windows/custom_terminal/` ↔ `ui/custom-terminal-window/`
+  - `src/windows/native_terminal/` ↔ `ui/native-terminal-window/`
+- Reusable platform primitives organized under `src/platform/` (attributes, borderless engine, CBT Hook guard, display/monitor helpers, effects).
 
 ---
 
@@ -66,16 +66,20 @@ This project provides a robust, modular, and fully tested Win32/DWM subclassing 
 slint-windows-mica-template/
 ├── src/
 │   ├── main.rs                   # Entry point, window initialization & CBT Hook dispatch
-│   ├── app_window/               # Main window logic (custom-drawn titlebar controls)
-│   ├── custom_terminal_window/   # Custom terminal child window logic
-│   ├── native_terminal_window/   # DWM native caption buttons window logic & subclassing
-│   └── window/                   # Core underlying Win32/DWM infrastructure
-│       ├── attributes.rs         # Window attributes (Mica, Dark Mode, Corners)
-│       ├── borderless.rs         # Win32 borderless subclassing & message processing
-│       ├── cbt_hook.rs           # CBT Hook zero-flicker instant injection guard
-│       ├── effects.rs            # Mica transparency & backdrop linkage
-│       ├── monitor.rs            # Multi-monitor cursor-following calculations
-│       └── sys_info.rs           # Windows OS version & theme detection
+│   ├── sys_info.rs               # Windows OS version & system theme detection
+│   ├── platform/                 # Windows platform-level window infrastructure
+│   │   ├── attributes.rs         # Window attributes (Mica, Dark Mode, Corners, Escapes)
+│   │   ├── borderless.rs         # Win32 borderless subclassing & Snap Layouts processing
+│   │   ├── controls.rs           # Titlebar controls adapter & button callbacks
+│   │   ├── display.rs            # Multi-monitor cursor-following centering calculations
+│   │   ├── effects.rs            # Mica transparency & backdrop linkage
+│   │   ├── hook.rs               # CBT Hook zero-flicker instant injection guard
+│   │   └── mod.rs
+│   └── windows/                  # Concrete UI windows logic
+│       ├── app/                  # Main window logic (custom-drawn titlebar controls)
+│       ├── custom_terminal/      # Custom terminal child window logic
+│       ├── native_terminal/      # DWM native caption buttons child window logic & subclassing
+│       └── mod.rs
 ├── ui/
 │   ├── app-window/               # Main window Slint UI
 │   ├── custom-terminal-window/   # Custom terminal child window Slint UI
