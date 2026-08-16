@@ -2,61 +2,61 @@
 
 # slint-windows-mica-template
 
-A modern, production-grade **Slint Fluent Design** borderless window template tailored for Windows! ✨
+A template and reference implementation for borderless windows and Windows 11 Mica effect using Slint.
 
-Features out-of-the-box support for **DWM native Mica material**, **zero-flicker CBT Hook instant injection**, **multi-monitor cursor-following smart centering**, **Windows 11 Snap Layouts**, and **dual-mode (Custom-Drawn & DWM Native) titlebar caption buttons**.
-
----
-
-## 📖 About The Project
-
-Slint is a lightweight, modern, declarative GUI framework for Rust. However, building Windows applications with true native look-and-feel often comes with challenges:
-- Lack of built-in Win11 Mica material and dark/light theme adaptability;
-- Borderless window startup visual flickering (white/gray frame flash before rendering);
-- Complex positioning and window centering across multiple monitors;
-- Caption button glitches during maximization, taskbar occlusion, and missing resize borders.
-
-This project provides a robust, modular, and fully tested Win32/DWM subclassing architecture on top of Slint. It serves as both a comprehensive learning reference and a turnkey application scaffold.
-
-> Special thanks to [@Drew-Chase](https://github.com/Drew-Chase) for creating [slint_borderless_windows](https://github.com/Drew-Chase/slint_borderless_windows) and providing the foundation!
+Demonstrates **DWM Mica backdrop material**, **CBT Hook startup flicker prevention**, **multi-monitor cursor-following window centering**, **Win11 Snap Layouts**, and **custom-drawn vs. DWM native titlebar buttons**.
 
 ---
 
-## ✨ Key Features
+## 📖 Overview
 
-### 1. 🪟 Three Window Paradigms (Ready-to-Use)
-- **Main Window (`AppWindow`) — Custom-Drawn Fluent Controls**:
+When building desktop applications on Windows with Slint, several platform-specific challenges often arise:
+- Lack of built-in Win11 Mica material and dark/light mode synchronization;
+- Borderless window startup visual flickering or delayed shadow rendering;
+- Multi-monitor window positioning and bounds checking;
+- Non-client area message handling, maximized state snap layouts, and 8-direction resize borders.
+
+This project wraps basic Win32/DWM windowing primitives on top of Slint, providing a clean starter scaffold and practical examples for reference.
+
+> Thanks to [@Drew-Chase](https://github.com/Drew-Chase) for the [slint_borderless_windows](https://github.com/Drew-Chase/slint_borderless_windows) project which provided the initial inspiration.
+
+---
+
+## 📌 Features
+
+### 1. Window Paradigms
+- **Main Window (Custom-drawn titlebar & controls)**:
   - Slint custom-drawn titlebar and control buttons (Minimize, Maximize/Restore, Close);
-  - Full integration with **Windows 11 Snap Layouts menu** on hover;
-  - Full 8-direction smooth edge resizing, titlebar dragging, and double-click to maximize/restore.
-- **Custom Terminal Child Window (`CustomTerminalWindow`)**:
-  - Demonstrates lightweight custom titlebar and controls;
-  - Built-in real-time console log viewer with one-click copy.
-- **Native Terminal Child Window (`NativeTerminalWindow`) — DWM Native Buttons**:
-  - Right-side caption buttons are **rendered and handled natively by Windows DWM** (`WS_OVERLAPPEDWINDOW` + `WM_NCCALCSIZE` client area extension);
-  - Slint only renders the left drag area and content, keeping the right button area transparent;
-  - Provides `WM_NCCALCSIZE` alignment in maximized mode, screen-space absolute coordinate hit-testing, `TrackMouseEvent` hover glow animations, and full 8-direction resize borders.
+  - Integrated **Windows 11 Snap Layouts menu** on hover;
+  - Supports 8-direction edge resizing, dragging, and double-click to toggle maximize.
+- **Custom Terminal Child Window**:
+  - Lightweight custom titlebar and custom controls example;
+  - Basic log display and copy operations.
+- **Native Terminal Child Window (DWM native buttons)**:
+  - Caption buttons rendered natively by **Windows DWM** (Minimize, Maximize, Close);
+  - Slint renders content and drag area, leaving the button area transparent;
+  - Handles maximized `WM_NCCALCSIZE` alignment, coordinate hit-testing, and `TrackMouseEvent` hover glow.
 
-### 2. ⚡ Zero-Flicker CBT Hook Instant Injection
-- Utilizes Win32 `WH_CBT` hook (`HCBT_CREATEWND` / `HCBT_ACTIVATE`) to synchronously capture the window `HWND` at `CreateWindowExW` creation time;
-- Injects DWM Mica backdrop, dark/light theme, rounded corners, and subclassing before the very first frame is rendered;
-- Completely eliminates the classic "white/gray box flash" on window startup.
+### 2. CBT Hook HWND Injection
+- Uses Win32 `WH_CBT` hook to capture native HWND synchronously at `CreateWindowExW` creation time;
+- Injects Mica backdrop, theme modes, corner preferences, and subclassing before the first frame is rendered;
+- Avoids the startup white/gray frame flash.
 
-### 3. 🖥️ Multi-Monitor Smart Centering
-- Automatically detects the active monitor where the mouse cursor is located;
-- Positions popups centered within the screen's **Work Area** (automatically avoiding taskbar overlap);
-- Built-in boundary protection to prevent windows from exceeding screen dimensions on any DPI.
+### 3. Multi-Monitor Centering
+- Detects the active monitor where the mouse cursor is located;
+- Positions windows centered within the screen's **Work Area** (avoiding taskbar overlap);
+- Basic boundary protection against exceeding screen bounds.
 
-### 4. 🎨 Fluent Design & Mica Material
-- Native Windows 11 Mica material integration that automatically synchronizes with system dark/light modes;
-- Compatible with various Slint rendering backends (Skia, FemtoVG, Software, etc.) ensuring stable transparency and text antialiasing.
+### 4. Mica Material & System Theme
+- Supports Win11 Mica material (automatically following system dark/light theme);
+- Compatible with common Slint rendering backends.
 
-### 5. 🛠️ Modular & Decoupled Architecture
+### 5. Modular Structure
 - 1-to-1 mapping between UI components and Rust modules:
   - `src/windows/app/` ↔ `ui/app-window/`
   - `src/windows/custom_terminal/` ↔ `ui/custom-terminal-window/`
   - `src/windows/native_terminal/` ↔ `ui/native-terminal-window/`
-- Reusable platform primitives organized under `src/platform/` (attributes, borderless engine, CBT Hook guard, display/monitor helpers, effects).
+- Common Windows platform primitives grouped under `src/platform/` (attributes, borderless subclassing, CBT Hook, multi-monitor helpers) for easier reuse and customization.
 
 ---
 
@@ -66,7 +66,7 @@ This project provides a robust, modular, and fully tested Win32/DWM subclassing 
 slint-windows-mica-template/
 ├── src/
 │   ├── main.rs                   # Entry point, window initialization & CBT Hook dispatch
-│   ├── sys_info.rs               # Windows OS version & system theme detection
+│   ├── sys_info.rs               # Windows OS version & theme detection
 │   ├── platform/                 # Windows platform-level window infrastructure
 │   │   ├── attributes.rs         # Window attributes (Mica, Dark Mode, Corners, Escapes)
 │   │   ├── borderless.rs         # Win32 borderless subclassing & Snap Layouts processing
@@ -106,25 +106,22 @@ cd slint-windows-mica-template
 cargo run
 ```
 
-> 💡 **Tip**: When adapting this template for your project, remember to update `name = "..."` in `Cargo.toml`.
-
 ---
 
-## ⚠️ Known Issues & Troubleshooting
+## ⚠️ Notes & Troubleshooting
 
 ### 1. NVIDIA OpenGL Transparent Background Turning Black
-* **Symptom**: On NVIDIA GPU systems, using OpenGL-based rendering backends (such as FemtoVG / Skia-OpenGL) may cause transparent window regions to turn completely black.
-* **Cause**: The NVIDIA driver's `OpenGL GDI compatibility` defaults to "Auto" or "Prefer performance", which breaks DWM window alpha transparency.
-* **Solutions & Backend Selection**:
-  1. **Modify GPU Driver Settings**: In `NVIDIA Control Panel` -> `Manage 3D settings` -> `Global Settings`, manually set `OpenGL GDI compatibility` to **"Prefer compatibility"**;
-  2. **Zero-Config Alternative (Recommended)**: If you cannot or do not want end-users to tweak NVIDIA driver settings, **OpenGL rendering is not viable**. Instead, switch to the **`software`** (software rendering) or **`renderer-wgpu`** (Direct3D 12 / Vulkan) backend, both of which are completely free of this restriction and deliver native Mica transparency out of the box.
+* **Symptom**: On NVIDIA GPU systems, using OpenGL-based rendering backends (such as FemtoVG / Skia-OpenGL) may cause transparent window regions to turn black.
+* **Cause**: NVIDIA driver's `OpenGL GDI compatibility` defaults to "Auto" or "Prefer performance", which interferes with DWM alpha transparency.
+* **Solutions**:
+  1. **GPU Driver Settings**: In `NVIDIA Control Panel` -> `Manage 3D settings` -> `Global Settings`, set `OpenGL GDI compatibility` to **"Prefer compatibility"**;
+  2. **Driver-independent workaround**: Use the **`software`** or **`renderer-wgpu`** backend instead.
 
-### 2. DWM Native Caption Buttons Maximization & Resizing
-* **Symptom**: Custom borderless windows with DWM buttons may lose hover effects or top-edge resizing when maximized.
-* **Solution**: Handled with precision in `native_terminal_window/borderless.rs` via top-aligned `WM_NCCALCSIZE`, physical screen coordinate hit-testing, and `TrackMouseEvent(TME_NONCLIENT | TME_LEAVE)`.
+### 2. DWM Native Caption Buttons Interaction
+* In native window mode, caption buttons are directly managed by Windows DWM. This template handles top-aligned `WM_NCCALCSIZE`, physical coordinate hit-testing, and `TrackMouseEvent` hover state updates in `src/windows/native_terminal/borderless.rs`.
 
 ---
 
 ## 📄 License
 
-This project is licensed under the [MIT License](LICENSE). Feel free to use, modify, and distribute it in your own projects!
+This project is licensed under the [MIT License](LICENSE).
