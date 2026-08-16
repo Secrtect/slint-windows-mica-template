@@ -1,8 +1,8 @@
-//! custom_terminal_window 专用窗口属性配置（DIY 空间）
+//! 自绘终端窗口专用属性配置（DIY 空间）
 //!
 //! 在此自由调整自绘终端窗口的 DWM 材质（如 Mica/Acrylic）、工具窗样式、置顶属性等。
 
-use crate::window::attributes::{CornerPreference, WindowAttributes, is_system_dark_mode};
+use crate::platform::attributes::{CornerPreference, WindowAttributes, is_system_dark_mode};
 
 /// 获取自绘终端窗口的个性化属性配置
 pub fn get_attributes() -> WindowAttributes {

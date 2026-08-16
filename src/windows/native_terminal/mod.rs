@@ -1,4 +1,4 @@
-//! native_terminal_window 子模块：与 ui/native-terminal-window/ 一一对应
+//! native_terminal 子模块：与 ui/native-terminal-window/ 一一对应
 //!
 //! 提供原生终端窗口的创建、CBT Hook 防闪烁注入、回调绑定与 Mica 视觉效果。
 //! 标题栏按钮由 DWM 系统原生绘制（非 Slint 自绘），Slint 仅负责拖拽区。
@@ -8,13 +8,13 @@ pub mod attributes;
 mod borderless;
 
 use crate::NativeTerminalWindow;
-use crate::window::{
+use crate::platform::{
     CbtHookGuard, apply_mica_effect, center_component_on_active_monitor,
 };
 use borderless::NativeCaptionFrame;
 use slint::ComponentHandle;
 use std::sync::{Arc, Mutex};
-use windows::Win32::Foundation::HWND;
+use ::windows::Win32::Foundation::HWND;
 
 /// 终端窗口标题（必须与 .slint 文件中 `title` 属性完全一致，用于 CBT Hook 匹配）
 const NATIVE_TERMINAL_TITLE: &str = "原生终端日志 (Console Output)";

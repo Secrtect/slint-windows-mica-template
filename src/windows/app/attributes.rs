@@ -1,8 +1,8 @@
-//! app_window 专用窗口属性配置（DIY 空间）
+//! 主窗口专用属性配置（DIY 空间）
 //!
 //! 在此自由定义主窗口的 DWM 材质、暗色模式、圆角、任务栏行为与逃生通道。
 
-use crate::window::attributes::{CornerPreference, WindowAttributes, is_system_dark_mode};
+use crate::platform::attributes::{CornerPreference, WindowAttributes, is_system_dark_mode};
 
 /// 获取主窗口的个性化属性配置
 pub fn get_attributes() -> WindowAttributes {

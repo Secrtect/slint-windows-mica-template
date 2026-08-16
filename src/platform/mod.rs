@@ -1,4 +1,4 @@
-//! 通用窗口基础设施模块 (Window Infrastructure)
+//! 通用 Windows 平台窗口基础设施模块 (Platform Infrastructure)
 //!
 //! 提供跨窗口复用的 Win32 无边框框架、Snap Layouts 贴靠布局、DWM 属性 (Mica/Acrylic)、
 //! 窗口样式与逃生通道、CBT Hook 零闪烁捕获、屏幕居中及视觉特效。

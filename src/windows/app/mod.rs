@@ -1,12 +1,12 @@
-//! app_window 模块：主窗口专属生命周期与业务逻辑
+//! app 模块：主窗口专属生命周期与业务逻辑
 //!
-//! 与 ui/app-window/ 一一对应，底层无边框与属性能力复用 crate::window 基础设施。
+//! 与 ui/app-window/ 一一对应，底层无边框与属性能力复用 crate::platform 基础设施。
 
 pub mod attributes;
 pub mod controls;
 
 use crate::AppWindow;
-use crate::window::{
+use crate::platform::{
     GlobalWindowControlsAdapter, TitlebarButtons, WindowFrame,
     center_component_on_active_monitor, apply_mica_effect,
 };

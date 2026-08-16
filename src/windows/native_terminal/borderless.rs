@@ -12,18 +12,18 @@ use slint::ComponentHandle;
 use slint::Window;
 use std::mem::size_of;
 use tracing::warn;
-use windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
-use windows::Win32::Graphics::Dwm::{
+use ::windows::Win32::Foundation::{HWND, LPARAM, LRESULT, RECT, WPARAM};
+use ::windows::Win32::Graphics::Dwm::{
     DwmDefWindowProc, DwmExtendFrameIntoClientArea, DwmGetWindowAttribute,
     DWMWA_CAPTION_BUTTON_BOUNDS,
 };
-use windows::Win32::Graphics::Gdi::{
+use ::windows::Win32::Graphics::Gdi::{
     GetMonitorInfoW, MonitorFromWindow, MONITORINFO, MONITOR_DEFAULTTONEAREST,
 };
-use windows::Win32::UI::Controls::MARGINS;
-use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
-use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
-use windows::Win32::UI::WindowsAndMessaging::{
+use ::windows::Win32::UI::Controls::MARGINS;
+use ::windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
+use ::windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
+use ::windows::Win32::UI::WindowsAndMessaging::{
     DefWindowProcW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTCLIENT,
     HTCLOSE, HTLEFT, HTMAXBUTTON, HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed,
     NCCALCSIZE_PARAMS, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SetWindowPos, SWP_FRAMECHANGED,

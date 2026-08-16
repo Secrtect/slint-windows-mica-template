@@ -1,4 +1,4 @@
-//! custom_terminal_window 专用标题栏适配器
+//! 自绘终端窗口专用标题栏适配器
 //!
 //! 提供与主窗口 AppWindow 一致的 Win32 非客户区按钮命中测试，
 //! 从而获得 Windows 原生系统气泡提示（tooltip）和 Win11 Snap Layouts 贴靠布局。
@@ -8,8 +8,8 @@
 //! enabling native system tooltips and Win11 Snap Layouts.
 
 use crate::CustomTerminalWindow;
-use crate::window::borderless::{TitlebarAdapter, TitlebarMetrics};
-use crate::window::controls::TitlebarButtons;
+use crate::platform::borderless::{TitlebarAdapter, TitlebarMetrics};
+use crate::platform::controls::TitlebarButtons;
 
 /// 终端窗口专用标题栏适配器
 ///
