@@ -22,17 +22,32 @@ use windows::Win32::Graphics::Gdi::{
 };
 use windows::Win32::UI::Controls::MARGINS;
 use windows::Win32::UI::Shell::{DefSubclassProc, RemoveWindowSubclass, SetWindowSubclass};
+use windows::Win32::UI::HiDpi::{GetDpiForWindow, GetSystemMetricsForDpi};
 use windows::Win32::UI::WindowsAndMessaging::{
-    DefWindowProcW, GetWindowRect, HTCAPTION, HTCLIENT, HTCLOSE, HTMAXBUTTON, HTMINBUTTON,
-    IsZoomed, NCCALCSIZE_PARAMS, SetWindowPos, SWP_FRAMECHANGED, SWP_NOACTIVATE, SWP_NOMOVE,
-    SWP_NOSIZE, SWP_NOZORDER, WM_NCCALCSIZE, WM_NCDESTROY, WM_NCHITTEST, WM_NCMOUSELEAVE,
-    WM_NCMOUSEMOVE,
+    DefWindowProcW, GetWindowRect, HTBOTTOM, HTBOTTOMLEFT, HTBOTTOMRIGHT, HTCAPTION, HTCLIENT,
+    HTCLOSE, HTLEFT, HTMAXBUTTON, HTMINBUTTON, HTRIGHT, HTTOP, HTTOPLEFT, HTTOPRIGHT, IsZoomed,
+    NCCALCSIZE_PARAMS, SM_CXPADDEDBORDER, SM_CXSIZEFRAME, SetWindowPos, SWP_FRAMECHANGED,
+    SWP_NOACTIVATE, SWP_NOMOVE, SWP_NOSIZE, SWP_NOZORDER, WM_NCCALCSIZE, WM_NCDESTROY,
+    WM_NCHITTEST, WM_NCMOUSELEAVE, WM_NCMOUSEMOVE,
 };
 use crate::NativeTerminalWindow;
 
 /// 标题栏高度（逻辑像素，与 Slint titlebar.slint 中的 height: 36px 一致）
 /// Titlebar height in logical pixels
 const TITLEBAR_HEIGHT: i32 = 36;
+
+/// 根据 DPI 获取窗口拉伸边框宽度
+fn get_resize_border_width(hwnd: HWND) -> i32 {
+    let dpi = unsafe { GetDpiForWindow(hwnd) };
+    if dpi != 0 {
+        unsafe {
+            GetSystemMetricsForDpi(SM_CXSIZEFRAME, dpi)
+                + GetSystemMetricsForDpi(SM_CXPADDEDBORDER, dpi)
+        }
+    } else {
+        8
+    }
+}
 
 /// 获取窗口所在显示器的工作区矩形
 fn get_monitor_work_area(hwnd: HWND) -> Option<RECT> {
@@ -205,7 +220,7 @@ impl NativeCaptionFrame {
 
             // 非客户区命中测试：DWM 按钮优先由 DwmDefWindowProc 处理；
             // 兜底逻辑按屏幕物理坐标精准计算三大按钮区域，确保最大化时悬停与点击体验与原生窗口完全一致；
-            // 标题栏其余区域返回 HTCAPTION 允许拖拽与双击；窗口边缘返回拉伸代码。
+            // 窗口化时提供 8 方向拉伸检测（包含最上方边缘 HTTOP/HTTOPLEFT/HTTOPRIGHT）；标题栏其余区域返回 HTCAPTION。
             WM_NCHITTEST => {
                 let x = (lparam.0 & 0xFFFF) as i16 as i32;
                 let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
@@ -256,17 +271,39 @@ impl NativeCaptionFrame {
                     }
                 }
 
-                // 2. 标题栏区域：返回 HTCAPTION 允许拖拽和双击最大化/还原
-                if y >= btn_top && y < btn_bottom && x < btn_left {
-                    return LRESULT(HTCAPTION as isize);
+                // 2. 窗口边缘 8 个方向拉伸判定（仅窗口化状态生效）
+                if !is_zoomed {
+                    let border_width = get_resize_border_width(hwnd);
+                    let left = x - rect.left < border_width;
+                    let right = rect.right - x <= border_width;
+                    let top = y - rect.top < border_width;
+                    let bottom = rect.bottom - y <= border_width;
+
+                    if top || bottom || left || right {
+                        let hit = if top && left {
+                            HTTOPLEFT
+                        } else if top && right {
+                            HTTOPRIGHT
+                        } else if bottom && left {
+                            HTBOTTOMLEFT
+                        } else if bottom && right {
+                            HTBOTTOMRIGHT
+                        } else if top {
+                            HTTOP
+                        } else if bottom {
+                            HTBOTTOM
+                        } else if left {
+                            HTLEFT
+                        } else {
+                            HTRIGHT
+                        };
+                        return LRESULT(hit as isize);
+                    }
                 }
 
-                // 3. 窗口边缘拉伸判定（仅窗口化状态）
-                if !is_zoomed {
-                    let hit = unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
-                    if hit != LRESULT(HTCLIENT as isize) {
-                        return hit;
-                    }
+                // 3. 标题栏区域：返回 HTCAPTION 允许拖拽和双击最大化/还原
+                if y >= btn_top && y < btn_bottom && x < btn_left {
+                    return LRESULT(HTCAPTION as isize);
                 }
 
                 LRESULT(HTCLIENT as isize)
