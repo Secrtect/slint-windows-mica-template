@@ -40,6 +40,15 @@ pub fn open(
     let frame_holder: Arc<Mutex<Option<WindowFrame<CustomTerminalWindow>>>> =
         Arc::new(Mutex::new(None));
 
+    // 如果是 Hide 模式，且之前已经创建过实例，则直接重新显示已存在的窗口
+    if close_behavior == CloseBehavior::Hide {
+        if let Some(existing) = handle.borrow().as_ref() {
+            existing.show()?;
+            println!("[CustomTerminal] 复用已有窗口实例并重新显示 (Hide 模式)");
+            return Ok(());
+        }
+    }
+
     // ── 1. 安装 CBT Hook（按 TERMINAL_TITLE 匹配并在 CreateWindowExW 瞬间注入属性 + 子类化） ──
     let hook_installed = CbtHookGuard::install(
         Some(TERMINAL_TITLE.to_string()),
@@ -97,10 +106,11 @@ pub fn open(
     apply_mica_effect(&terminal, |t| t.set_is_mica_active(true), hook_ok);
 
     // ── 6. 绑定 UI 回调 ──
-    // 6a. 关闭按钮（⚠️ 标题栏按钮由 Win32 子类化接管，此回调作为 fallback）
-    //     CloseBehavior::Destroy → 不调用 hide()，让 Slint 自然销毁窗口
-    //     CloseBehavior::Hide → 调用 hide()，隐藏窗口并保留组件实例
+    // 6a. 关闭按钮（标题栏按钮与底部按钮统一触发 close-requested）
+    //     CloseBehavior::Destroy → 调用 hide() 并清空 handle 句柄持有器
+    //     CloseBehavior::Hide → 调用 hide() 并保留 handle 中的组件实例
     let weak = terminal.as_weak();
+    let handle_for_close = handle.clone();
     terminal.on_close_requested(move || {
         match close_behavior {
             CloseBehavior::Hide => {
@@ -110,11 +120,11 @@ pub fn open(
                 }
             }
             CloseBehavior::Destroy => {
-                // 不调用 hide()，让 Slint 自然销毁窗口（释放原生窗口资源）
-                // Don't call hide(), let Slint destroy the window naturally (release native window resources)
-                // 注意：旧组件句柄仍保留在 handle 中（已无窗口），下次打开时会被新组件覆盖
-                // Note: old component handle remains in holder (windowless), will be overwritten on next open
-                println!("[CustomTerminal] 窗口已关闭，将自然销毁 (Destroy)");
+                if let Some(t) = weak.upgrade() {
+                    let _ = t.window().hide();
+                }
+                *handle_for_close.borrow_mut() = None;
+                println!("[CustomTerminal] 窗口已关闭并释放资源 (Destroy)");
             }
         }
     });

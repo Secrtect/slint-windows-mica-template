@@ -8,7 +8,7 @@
 //! enabling native system tooltips and Win11 Snap Layouts.
 
 use crate::CustomTerminalWindow;
-use crate::platform::borderless::{TitlebarAdapter, TitlebarMetrics};
+use crate::platform::borderless::{TitlebarAdapter, TitlebarMetrics, WindowFrame};
 use crate::platform::controls::TitlebarButtons;
 
 /// 终端窗口专用标题栏适配器
@@ -81,5 +81,10 @@ impl TitlebarAdapter<CustomTerminalWindow> for TerminalTitlebarAdapter {
         if component.get_titlebar_close_pressed() != close {
             component.set_titlebar_close_pressed(close);
         }
+    }
+
+    /// 点击标题栏关闭按钮时，委托调用 Slint 的 close-requested 回调
+    fn on_close_clicked(&self, component: &CustomTerminalWindow, _frame: &WindowFrame<CustomTerminalWindow>) {
+        component.invoke_close_requested();
     }
 }
