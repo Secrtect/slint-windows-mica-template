@@ -1,5 +1,4 @@
 //! 标题栏控件配置与通用适配器模块
-//!
 //! Titlebar controls configuration and common adapters module.
 
 use super::borderless::{TitlebarAdapter, TitlebarMetrics, WindowFrame};
@@ -7,6 +6,7 @@ use crate::AppWindow;
 use slint::ComponentHandle;
 
 /// 标题栏按钮可见性配置
+/// Titlebar button visibility configuration.
 #[derive(Debug, Clone, Copy)]
 pub struct TitlebarButtons {
     pub show_minimize: bool,
@@ -25,6 +25,7 @@ impl Default for TitlebarButtons {
 }
 
 /// 针对使用 Slint `global WindowControls` 全局单例的窗口（如主窗口 AppWindow）的通用适配器
+/// Universal adapter for windows using Slint `global WindowControls` singleton (e.g. main window AppWindow).
 pub struct GlobalWindowControlsAdapter {
     pub buttons: TitlebarButtons,
 }
@@ -85,6 +86,7 @@ impl TitlebarAdapter<AppWindow> for GlobalWindowControlsAdapter {
 }
 
 /// 快速绑定主窗口 global WindowControls 的回调与同步
+/// Helper to bind callbacks and synchronize state with global WindowControls.
 pub fn setup_global_window_controls(
     app: &AppWindow,
     frame: WindowFrame<AppWindow>,
@@ -92,18 +94,18 @@ pub fn setup_global_window_controls(
 ) {
     let controls = app.global::<crate::WindowControls>();
 
-    // 1. 初始化按钮可见性与状态
+    // 1. 初始化按钮可见性与状态 / 1. Initialize button visibility and state
     controls.set_show_minimize(buttons.show_minimize);
     controls.set_show_maximize(buttons.show_maximize);
     controls.set_show_close(buttons.show_close);
     controls.set_maximized(false);
 
-    // 2. 监听最大化/还原状态变化
+    // 2. 监听最大化/还原状态变化 / 2. Listen to maximize/restore state changes
     frame.on_maximized_changed(|app, is_max| {
         app.global::<crate::WindowControls>().set_maximized(is_max);
     });
 
-    // 3. 绑定 UI 回调到 WindowFrame
+    // 3. 绑定 UI 回调到 WindowFrame / 3. Bind UI callbacks to WindowFrame
     let f_max = frame.clone();
     controls.on_maximize(move || {
         f_max.toggle_maximized();

@@ -1,9 +1,8 @@
 //! 自绘终端窗口专用标题栏适配器
+//! Custom titlebar adapter for the custom terminal window.
 //!
 //! 提供与主窗口 AppWindow 一致的 Win32 非客户区按钮命中测试，
 //! 从而获得 Windows 原生系统气泡提示（tooltip）和 Win11 Snap Layouts 贴靠布局。
-//!
-//! Custom titlebar adapter for the custom terminal window.
 //! Provides the same Win32 non-client area hit-testing as the main window,
 //! enabling native system tooltips and Win11 Snap Layouts.
 
@@ -12,12 +11,18 @@ use crate::platform::borderless::{TitlebarAdapter, TitlebarMetrics, WindowFrame}
 use crate::platform::controls::TitlebarButtons;
 
 /// 终端窗口专用标题栏适配器
+/// Custom titlebar adapter for the terminal window.
 ///
 /// 与主窗口的 GlobalWindowControlsAdapter 不同，此适配器：
 /// - 使用硬编码的按钮尺寸（与 Slint 中 TerminalTitlebar 的布局一致）
 /// - 不依赖 global WindowControls 单例，而是直接设置 CustomTerminalWindow 的
 ///   titlebar-*-hover / titlebar-*-pressed 属性来驱动按钮视觉状态
 /// - 点击事件使用 trait 默认实现委托给 WindowFrame（最小化/最大化/关闭）
+///
+/// Unlike GlobalWindowControlsAdapter for AppWindow, this adapter:
+/// - Uses fixed button metrics (aligned with TerminalTitlebar in Slint)
+/// - Directly sets CustomTerminalWindow's titlebar-*-hover / titlebar-*-pressed properties
+/// - Delegates close click event to Slint's close-requested callback
 pub struct TerminalTitlebarAdapter {
     pub buttons: TitlebarButtons,
 }
@@ -30,9 +35,9 @@ impl TerminalTitlebarAdapter {
 
 impl TitlebarAdapter<CustomTerminalWindow> for TerminalTitlebarAdapter {
     fn metrics(&self, _component: &CustomTerminalWindow) -> TitlebarMetrics {
-        // 按钮尺寸与 ui/custom-terminal-window/titlebar.slint 中的
-        // TerminalTitlebar 布局保持一致：
-        //   height: 36px, 按钮宽度: 46px
+        // 按钮尺寸与 ui/custom-terminal-window/titlebar.slint 中的 TerminalTitlebar 布局保持一致：
+        // Button metrics align with TerminalTitlebar layout in ui/custom-terminal-window/titlebar.slint:
+        //   height: 36px, 按钮宽度 / button width: 46px
         TitlebarMetrics {
             titlebar_height: 36.0,
             close_width: 46.0,
@@ -84,6 +89,7 @@ impl TitlebarAdapter<CustomTerminalWindow> for TerminalTitlebarAdapter {
     }
 
     /// 点击标题栏关闭按钮时，委托调用 Slint 的 close-requested 回调
+    /// On titlebar close button clicked, delegate to Slint's close-requested callback
     fn on_close_clicked(&self, component: &CustomTerminalWindow, _frame: &WindowFrame<CustomTerminalWindow>) {
         component.invoke_close_requested();
     }

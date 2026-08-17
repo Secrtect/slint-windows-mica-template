@@ -1,5 +1,10 @@
+//! 系统环境与版本检测模块
+//! System environment and OS version detection module.
+
 use std::sync::OnceLock;
 
+/// 检测当前系统是否为 Windows 11 (Build >= 22000)
+/// Detect whether current operating system is Windows 11 (Build >= 22000)
 #[cfg(target_os = "windows")]
 pub fn is_win11() -> bool {
     static IS_WIN11: OnceLock<bool> = OnceLock::new();
@@ -23,6 +28,8 @@ pub fn is_win11() -> bool {
     })
 }
 
+/// 非 Windows 平台降级实现
+/// Non-Windows platform fallback implementation
 #[cfg(not(target_os = "windows"))]
 pub fn is_win11() -> bool {
     false

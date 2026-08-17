@@ -1,6 +1,8 @@
 //! 业务与示例窗口模块集合
+//! Application and sample window modules collection.
 //!
 //! 包含主窗口、自绘终端窗口与 DWM 原生终端窗口的具体业务实现。
+//! Contains specific implementations for main window, custom terminal window, and DWM native terminal window.
 
 pub mod app;
 pub mod custom_terminal;
@@ -18,7 +20,7 @@ pub mod native_terminal;
 /// - `Destroy`: Destroy the window, release the component and all resources
 ///   (suitable for one-shot scenarios, default behavior)
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
-#[allow(dead_code)] // Hide 为其他开发者预留的选项，当前默认使用 Destroy
+#[allow(dead_code)] // Hide 为其他开发者预留的选项，当前默认使用 Destroy / Hide is reserved for developers; Destroy is used by default
 pub enum CloseBehavior {
     /// 关闭时隐藏窗口（可重新显示）- Hide window on close (can be re-shown later)
     Hide,

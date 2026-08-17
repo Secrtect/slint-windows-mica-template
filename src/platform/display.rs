@@ -1,5 +1,4 @@
 //! 显示器与窗口定位模块：根据鼠标所在显示器进行 DPI 换算并居中窗口，防止超屏。
-//!
 //! Display and window positioning module: calculates DPI based on monitor where
 //! mouse is located, centers window, and prevents overflow.
 
@@ -17,18 +16,19 @@ use windows_sys::Win32::UI::HiDpi::{GetDpiForMonitor, GetDpiForSystem, MDT_EFFEC
 use windows_sys::Win32::UI::WindowsAndMessaging::GetCursorPos;
 
 /// 根据当前鼠标所在屏幕计算 DPI 并调整窗口居中定位，防止超屏
+/// Calculate DPI based on monitor under mouse cursor, center window, and prevent overflow
 pub fn center_on_active_monitor(window: &slint::Window, init_w_logical: f32, init_h_logical: f32) {
     #[cfg(target_os = "windows")]
     {
         let (target_x_phys, target_y_phys, target_w_logical, target_h_logical, is_resized) = unsafe {
-            // 1. 获取当前鼠标物理位置
+            // 1. 获取当前鼠标物理位置 / 1. Get current mouse physical position
             let mut cursor_pos = POINT { x: 0, y: 0 };
             GetCursorPos(&mut cursor_pos);
 
-            // 2. 获取目标显示器句柄
+            // 2. 获取目标显示器句柄 / 2. Get target monitor handle
             let h_monitor = MonitorFromPoint(cursor_pos, MONITOR_DEFAULTTONEAREST);
 
-            // 3. 获取工作区 RECT
+            // 3. 获取工作区 RECT / 3. Get work area RECT
             let mut monitor_info = MONITORINFO {
                 cbSize: std::mem::size_of::<MONITORINFO>() as u32,
                 rcMonitor: RECT {
@@ -47,7 +47,7 @@ pub fn center_on_active_monitor(window: &slint::Window, init_w_logical: f32, ini
             };
             GetMonitorInfoW(h_monitor, &mut monitor_info as *mut _ as *mut _);
 
-            // 4. 获取显示器 DPI
+            // 4. 获取显示器 DPI / 4. Get monitor DPI
             let mut dpi_x: u32 = 96;
             let mut dpi_y: u32 = 96;
             if GetDpiForMonitor(h_monitor, MDT_EFFECTIVE_DPI, &mut dpi_x, &mut dpi_y) != 0 {
@@ -61,16 +61,16 @@ pub fn center_on_active_monitor(window: &slint::Window, init_w_logical: f32, ini
             let work_w_phys = (work_area.right - work_area.left) as f32;
             let work_h_phys = (work_area.bottom - work_area.top) as f32;
 
-            // 5. 计算逻辑工作区
+            // 5. 计算逻辑工作区 / 5. Calculate logical work area
             let work_w_logical = work_w_phys / scale;
             let work_h_logical = work_h_phys / scale;
 
-            // 6. 防超屏截断
+            // 6. 防超屏截断 / 6. Prevent screen overflow
             let target_w_logical = init_w_logical.min(work_w_logical);
             let target_h_logical = init_h_logical.min(work_h_logical);
             let is_resized = target_w_logical < init_w_logical || target_h_logical < init_h_logical;
 
-            // 7. 计算居中物理坐标
+            // 7. 计算居中物理坐标 / 7. Calculate centered physical coordinates
             let target_w_phys = target_w_logical * scale;
             let target_h_phys = target_h_logical * scale;
 
@@ -86,7 +86,7 @@ pub fn center_on_active_monitor(window: &slint::Window, init_w_logical: f32, ini
             )
         };
 
-        // 应用位置与尺寸
+        // 应用位置与尺寸 / Apply position and size
         window.set_position(slint::PhysicalPosition::new(target_x_phys, target_y_phys));
 
         if is_resized {
@@ -96,6 +96,7 @@ pub fn center_on_active_monitor(window: &slint::Window, init_w_logical: f32, ini
 }
 
 /// 针对实现了 `ComponentHandle` 的 Slint 组件的居中定位辅助函数
+/// Helper to center a Slint component implementing `ComponentHandle` on the active monitor.
 pub fn center_component_on_active_monitor<T: ComponentHandle>(
     component: &T,
     init_w_logical: f32,

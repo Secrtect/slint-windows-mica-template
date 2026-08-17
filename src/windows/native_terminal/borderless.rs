@@ -1,9 +1,9 @@
 //! DWM 原生按钮子类化模块
+//! DWM native caption buttons subclassing module.
 //!
 //! 为 native_terminal_window 提供简化子类化，使用 DWM 系统原生绘制
 //! 标题栏按钮（最小化/最大化/关闭），Slint 仅负责拖拽区渲染。
 //!
-//! DWM native button subclassing module.
 //! Provides simplified subclassing for native_terminal_window,
 //! using DWM system-native titlebar buttons. Slint only renders the drag area.
 
@@ -33,10 +33,11 @@ use ::windows::Win32::UI::WindowsAndMessaging::{
 use crate::NativeTerminalWindow;
 
 /// 标题栏高度（逻辑像素，与 Slint titlebar.slint 中的 height: 36px 一致）
-/// Titlebar height in logical pixels
+/// Titlebar height in logical pixels (consistent with height: 36px in Slint titlebar.slint)
 const TITLEBAR_HEIGHT: i32 = 36;
 
 /// 根据 DPI 获取窗口拉伸边框宽度
+/// Retrieve window resize border width based on window DPI
 fn get_resize_border_width(hwnd: HWND) -> i32 {
     let dpi = unsafe { GetDpiForWindow(hwnd) };
     if dpi != 0 {
@@ -50,6 +51,7 @@ fn get_resize_border_width(hwnd: HWND) -> i32 {
 }
 
 /// 获取窗口所在显示器的工作区矩形
+/// Retrieve work area rectangle for the monitor containing the window
 fn get_monitor_work_area(hwnd: HWND) -> Option<RECT> {
     unsafe {
         let monitor = MonitorFromWindow(hwnd, MONITOR_DEFAULTTONEAREST);
@@ -66,11 +68,17 @@ fn get_monitor_work_area(hwnd: HWND) -> Option<RECT> {
 }
 
 /// DWM 原生按钮窗口框架
+/// DWM native caption window frame.
 ///
 /// 安装简化子类化 proc，核心逻辑：
 /// 1. WM_NCCALCSIZE — 扩展客户区覆盖标题栏，DWM 在客户区之上绘制原生按钮
 /// 2. WM_NCHITTEST — 标题栏区域返回 HTCAPTION，边缘区域返回拉伸码，按钮区域精确透传/兜底
 /// 3. 1px 阴影修复 — DwmExtendFrameIntoClientArea
+///
+/// Installs simplified subclassing proc, core logic:
+/// 1. WM_NCCALCSIZE — Extends client area to cover titlebar; DWM renders native buttons on top
+/// 2. WM_NCHITTEST — Titlebar returns HTCAPTION, edges return resize codes, buttons return hit codes
+/// 3. 1px shadow fix — DwmExtendFrameIntoClientArea
 pub struct NativeCaptionFrame {
     weak: slint::Weak<NativeTerminalWindow>,
 }
@@ -97,6 +105,7 @@ impl NativeCaptionFrame {
     }
 
     /// 开始拖拽窗口
+    /// Begin dragging window
     pub fn drag(&self) {
         self.with_winit_window(|window| {
             let _ = window.drag_window();
@@ -104,6 +113,7 @@ impl NativeCaptionFrame {
     }
 
     /// 切换最大化/还原
+    /// Toggle maximize / restore
     pub fn toggle_maximized(&self) {
         self.with_window(|w| w.set_maximized(!w.is_maximized()));
     }
@@ -118,7 +128,7 @@ impl NativeCaptionFrame {
     /// Install subclassing + shadow via HWND (for CBT Hook scenarios)
     pub fn apply_to_hwnd(&self, hwnd: HWND) {
         // 1. 将 DWM 材质帧扩展至整个客户区，让 DWM 有空间绘制原生按钮和背景材质
-        //    Extend DWM frame into entire client area for native button rendering and backdrop
+        // 1. Extend DWM frame into entire client area for native button rendering and backdrop
         {
             let margins = MARGINS {
                 cxLeftWidth: -1,
@@ -134,6 +144,7 @@ impl NativeCaptionFrame {
         }
 
         // 2. 安装简化子类化 proc（仅处理 WM_NCCALCSIZE / WM_NCHITTEST / WM_NCDESTROY）
+        // 2. Install simplified subclassing proc (handles WM_NCCALCSIZE / WM_NCHITTEST / WM_NCDESTROY)
         let ref_data = self as *const Self as usize;
         unsafe {
             if !SetWindowSubclass(
@@ -149,6 +160,7 @@ impl NativeCaptionFrame {
         }
 
         // 3. 触发 SWP_FRAMECHANGED 通知 DWM 刷新
+        // 3. Trigger SWP_FRAMECHANGED to notify DWM to refresh
         unsafe {
             let _ = SetWindowPos(
                 hwnd,
@@ -162,7 +174,7 @@ impl NativeCaptionFrame {
         }
 
         // 4. 诊断：DWM 是否分配了按钮空间？
-        //    Diagnostic: did DWM allocate button space?
+        // 4. Diagnostic: Did DWM allocate button space?
         {
             let mut btn_rect = RECT::default();
             let btn_result = unsafe {
@@ -174,10 +186,10 @@ impl NativeCaptionFrame {
                 )
             };
             if btn_result.is_ok() && btn_rect.left > 0 {
-                println!("[NativeCaption] CAPTION_BUTTON_BOUNDS = ({}, {}, {}, {}) — DWM 已分配按钮!",
+                println!("[NativeCaption] CAPTION_BUTTON_BOUNDS = ({}, {}, {}, {}) — DWM 已分配按钮! / DWM allocated buttons!",
                     btn_rect.left, btn_rect.top, btn_rect.right, btn_rect.bottom);
             } else {
-                println!("[NativeCaption] CAPTION_BUTTON_BOUNDS = 空 — DWM 未分配按钮空间!");
+                println!("[NativeCaption] CAPTION_BUTTON_BOUNDS = 空 — DWM 未分配按钮空间! / DWM did not allocate button space!");
             }
         }
     }
@@ -210,10 +222,11 @@ impl NativeCaptionFrame {
                 let original_top = params.rgrc[0].top;
 
                 // 无论是窗口化还是最大化，均先调用 DefWindowProcW 让 Windows/DWM 计算标准非客户区布局
+                // In both windowed and maximized modes, call DefWindowProcW first for standard NC layout
                 let _ = unsafe { DefWindowProcW(hwnd, msg, wparam, lparam) };
 
                 // 统一将 top 恢复至 original_top，使客户区延伸至窗口最顶部（offset=0）
-                // 这样 DWM 能识别到标题栏扩展，从而在窗口化和最大化下均原生接管按钮 hit-test 与悬停高亮动画
+                // Restore top to original_top so client area extends to top of window (offset=0)
                 params.rgrc[0].top = original_top;
                 LRESULT(0)
             }
@@ -221,6 +234,7 @@ impl NativeCaptionFrame {
             // 非客户区命中测试：DWM 按钮优先由 DwmDefWindowProc 处理；
             // 兜底逻辑按屏幕物理坐标精准计算三大按钮区域，确保最大化时悬停与点击体验与原生窗口完全一致；
             // 窗口化时提供 8 方向拉伸检测（包含最上方边缘 HTTOP/HTTOPLEFT/HTTOPRIGHT）；标题栏其余区域返回 HTCAPTION。
+            // Non-client hit-testing: buttons prioritized by DwmDefWindowProc with precise physical coordinate fallback.
             WM_NCHITTEST => {
                 let x = (lparam.0 & 0xFFFF) as i16 as i32;
                 let y = ((lparam.0 >> 16) & 0xFFFF) as i16 as i32;
@@ -232,6 +246,7 @@ impl NativeCaptionFrame {
                 }
 
                 // 确定标题栏顶部及右侧边界（基于屏幕坐标）
+                // Determine titlebar top and right bounds (screen coordinates)
                 let (btn_top, btn_bottom, btn_right) = if is_zoomed {
                     let work_area = get_monitor_work_area(hwnd).unwrap_or(rect);
                     (work_area.top, work_area.top + TITLEBAR_HEIGHT, work_area.right)
@@ -240,6 +255,7 @@ impl NativeCaptionFrame {
                 };
 
                 // DWMWA_CAPTION_BUTTON_BOUNDS 获取按钮总宽度（若获取失败则使用 140px 标准宽度）
+                // Retrieve caption button width from DWM (fallback to 140px standard width)
                 let mut btn_rect = RECT::default();
                 let btn_area_w = if unsafe {
                     DwmGetWindowAttribute(
@@ -259,6 +275,7 @@ impl NativeCaptionFrame {
                 let btn_left = btn_right - btn_area_w;
 
                 // 1. 优先判定三大原生按钮区域（Close / Maximize / Minimize）
+                // 1. Prioritize caption buttons (Close / Maximize / Minimize)
                 if y >= btn_top && y < btn_bottom && x >= btn_left && x <= btn_right {
                     let single_btn_w = (btn_area_w / 3).max(1);
                     let dist_from_right = btn_right - x;
@@ -272,6 +289,7 @@ impl NativeCaptionFrame {
                 }
 
                 // 2. 窗口边缘 8 个方向拉伸判定（仅窗口化状态生效）
+                // 2. 8-direction resize border testing (active only in windowed mode)
                 if !is_zoomed {
                     let border_width = get_resize_border_width(hwnd);
                     let left = x - rect.left < border_width;
@@ -302,6 +320,7 @@ impl NativeCaptionFrame {
                 }
 
                 // 3. 标题栏区域：返回 HTCAPTION 允许拖拽和双击最大化/还原
+                // 3. Titlebar area: Return HTCAPTION for drag and double-click maximize/restore
                 if y >= btn_top && y < btn_bottom && x < btn_left {
                     return LRESULT(HTCAPTION as isize);
                 }
@@ -310,6 +329,7 @@ impl NativeCaptionFrame {
             }
 
             // 非客户区鼠标移动：注册 TrackMouseEvent 开启鼠标离开监听，确保按钮悬停高亮能正确刷新与清除
+            // Non-client mouse move: Register TrackMouseEvent to ensure hover states clear on leave
             WM_NCMOUSEMOVE => {
                 let mut tme = windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT {
                     cbSize: size_of::<windows::Win32::UI::Input::KeyboardAndMouse::TRACKMOUSEEVENT>() as u32,
@@ -327,6 +347,7 @@ impl NativeCaptionFrame {
             }
 
             // 鼠标离开非客户区：通知 DWM 与系统底层清理按钮高亮状态
+            // Non-client mouse leave: Notify DWM to clear caption button highlight
             WM_NCMOUSELEAVE => unsafe {
                 let mut dwm_result = LRESULT(0);
                 let _ = DwmDefWindowProc(hwnd, msg, wparam, lparam, &mut dwm_result);
@@ -334,8 +355,9 @@ impl NativeCaptionFrame {
             },
 
             // 窗口销毁时注销子类化
+            // Unregister subclassing on window destruction
             WM_NCDESTROY => {
-                println!("[NativeCaption] WM_NCDESTROY — 注销子类化");
+                println!("[NativeCaption] WM_NCDESTROY — 注销子类化 / Unregistered subclassing");
                 unsafe {
                     let result = DefSubclassProc(hwnd, msg, wparam, lparam);
                     let _ = RemoveWindowSubclass(hwnd, Some(Self::native_caption_proc), uid_subclass);

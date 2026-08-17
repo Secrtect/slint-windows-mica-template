@@ -10,7 +10,7 @@ pub mod platform;
 mod sys_info;
 mod windows;
 
-// 引入自动生成的 UI 模块
+// 引入自动生成的 UI 模块 / Import auto-generated Slint UI modules
 slint::include_modules!();
 
 fn main() -> Result<(), Box<dyn Error>> {
@@ -18,20 +18,26 @@ fn main() -> Result<(), Box<dyn Error>> {
     //    主窗口使用 app.run() 而非显式 show()，窗口创建发生在 run() 内部。
     //    CBT Hook 在 CreateWindowExW 瞬间捕获 HWND 并通过 apply_to_hwnd 同步安装，
     //    窗口首帧绘制前一切就绪，彻底消除阴影/子类化延迟 ──
+    // ── Shared Frame holder for synchronous subclassing + shadow installation in CBT Hook callback.
+    //    Main window uses app.run() instead of explicit show(); window creation happens inside run().
+    //    CBT Hook captures HWND instantly upon CreateWindowExW and installs synchronously via apply_to_hwnd,
+    //    ensuring everything is ready before the first frame renders to eliminate shadow/subclassing delays. ──
     let frame_holder: Arc<Mutex<Option<platform::WindowFrame<AppWindow>>>> =
         Arc::new(Mutex::new(None));
 
     // 1. 安装主窗口 CBT Hook（在 CreateWindowExW 瞬间注入 DWM 属性 + 子类化 + 阴影）
+    // 1. Install main window CBT Hook (injects DWM attributes + subclassing + shadow at CreateWindowExW)
     let hook_installed = platform::CbtHookGuard::install(
         Some("Slint标准组件全家桶".to_string()),
         {
             let frame_holder = Arc::clone(&frame_holder);
             move |hwnd| {
-                // DWM 属性注入（Mica、暗色模式、圆角等）
+                // DWM 属性注入（Mica、暗色模式、圆角等）/ DWM attributes injection (Mica, dark mode, rounded corners, etc.)
                 let attrs = windows::app::attributes::get_attributes();
                 attrs.apply(hwnd);
 
                 // 子类化 + 阴影（通过 HWND 同步安装，无需等 winit 就绪）
+                // Subclassing + shadow (synchronously installed via HWND without waiting for winit)
                 let hwnd_struct = HWND(hwnd as *mut std::ffi::c_void);
                 if let Some(ref frame) = *frame_holder.lock().unwrap() {
                     frame.apply_to_hwnd(hwnd_struct);
@@ -40,56 +46,62 @@ fn main() -> Result<(), Box<dyn Error>> {
         },
     );
     let hook_ok = hook_installed.is_ok();
-    // _hook_guard 保留到 main 结束，防止提前 drop
+    // _hook_guard 保留到 main 结束，防止提前 drop / Keep _hook_guard alive until main exits to prevent early drop
     let _hook_guard = hook_installed.ok();
 
     if hook_ok {
-        println!("[Main] CBT Hook 已安装，等待 run() 期间捕获 UI 窗口");
+        println!("[Main] CBT Hook 已安装，等待 run() 期间捕获 UI 窗口 / CBT Hook installed, waiting to capture UI window during run()");
     } else {
-        println!("[Main] CBT Hook 安装失败，将通过 event loop 路径 fallback");
+        println!("[Main] CBT Hook 安装失败，将通过 event loop 路径 fallback / CBT Hook installation failed, falling back to event loop path");
     }
 
-    // 2. 创建主窗口实例
+    // 2. 创建主窗口实例 / Create main window instance
     let app = AppWindow::new()?;
 
     // 3. 创建无边框框架（不调度 apply，由 CBT Hook 同步安装）
+    // 3. Create borderless frame (does not schedule apply; installed synchronously by CBT Hook)
     let frame = windows::app::create_frame(&app);
     *frame_holder.lock().unwrap() = Some(frame.clone());
 
     // 4. 配置主窗口（居中定位、Mica 特效、控件绑定）
+    // 4. Configure main window (center positioning, Mica effect, control bindings)
     windows::app::setup(&app, &frame, hook_ok);
 
     // 5. 绑定"打开自绘终端窗口"按钮
     //    默认行为：关闭窗口时销毁（释放资源）
     //    如需改为隐藏窗口（保留状态），将 CloseBehavior::Destroy 改为 CloseBehavior::Hide
+    // 5. Bind "Open Custom Terminal Window" button
+    //    Default behavior: Destroy window on close (release resources)
+    //    To hide window on close (preserve state), change CloseBehavior::Destroy to CloseBehavior::Hide
     let custom_terminal_handle: Rc<RefCell<Option<CustomTerminalWindow>>> = Rc::new(RefCell::new(None));
     let handle_custom = custom_terminal_handle.clone();
     app.on_open_custom_terminal_window(move || {
         match windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Destroy) {
             Ok(()) => {
-                println!("[Main] 自绘终端窗口已打开");
+                println!("[Main] 自绘终端窗口已打开 / Custom terminal window opened");
             }
             Err(e) => {
-                eprintln!("[Main] 打开自绘终端窗口失败: {}", e);
+                eprintln!("[Main] 打开自绘终端窗口失败: {} / Failed to open custom terminal window: {}", e, e);
             }
         }
     });
 
     // 6. 绑定"打开原生终端窗口"按钮
+    // 6. Bind "Open Native Terminal Window" button
     let native_terminal_handle: Rc<RefCell<Option<NativeTerminalWindow>>> = Rc::new(RefCell::new(None));
     let handle_native = native_terminal_handle.clone();
     app.on_open_native_terminal_window(move || {
         match windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Destroy) {
             Ok(()) => {
-                println!("[Main] 原生终端窗口已打开");
+                println!("[Main] 原生终端窗口已打开 / Native terminal window opened");
             }
             Err(e) => {
-                eprintln!("[Main] 打开原生终端窗口失败: {}", e);
+                eprintln!("[Main] 打开原生终端窗口失败: {} / Failed to open native terminal window: {}", e, e);
             }
         }
     });
 
-    // 7. 运行主循环
+    // 7. 运行主循环 / Run event loop
     app.run()?;
 
     Ok(())

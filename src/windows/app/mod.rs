@@ -1,6 +1,8 @@
 //! app 模块：主窗口专属生命周期与业务逻辑
+//! App module: main window exclusive lifecycle and business logic.
 //!
 //! 与 ui/app-window/ 一一对应，底层无边框与属性能力复用 crate::platform 基础设施。
+//! Corresponds directly to ui/app-window/; reuses crate::platform infrastructure for borderless and DWM styling.
 
 pub mod attributes;
 pub mod controls;
@@ -25,15 +27,15 @@ pub fn create_frame(app: &AppWindow) -> WindowFrame<AppWindow> {
 }
 
 /// 配置主窗口（居中定位、Mica 特效、控件绑定）
-/// Configure the main window (center, Mica, control bindings)
+/// Configure the main window (center positioning, Mica effect, control bindings)
 pub fn setup(app: &AppWindow, frame: &WindowFrame<AppWindow>, hook_ok: bool) {
-    // 1. 定位到当前活动屏幕居中
+    // 1. 定位到当前活动屏幕居中 / 1. Center window on active monitor
     center_component_on_active_monitor(app, app.get_init_width(), app.get_init_height());
 
-    // 2. 应用 Mica 视觉特效
+    // 2. 应用 Mica 视觉特效 / 2. Apply Mica visual effect
     apply_mica_effect(app, |a| a.set_is_mica_active(true), hook_ok);
 
-    // 3. 绑定窗口控制回调
+    // 3. 绑定窗口控制回调 / 3. Bind window control callbacks
     let buttons = TitlebarButtons {
         show_minimize: true,
         show_maximize: true,
