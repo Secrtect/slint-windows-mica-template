@@ -163,18 +163,20 @@ let frame = WindowFrame::new(&terminal, Arc::new(TerminalTitlebarAdapter::new(bu
 
 ### 2. Window Close Behavior: Hide vs. Destroy
 
-Secondary windows (such as settings dialogs, terminal logs, or debug panels) can adopt two closing strategies:
-- **`Destroy` (Default)**: Completely releases the native window handle and Slint component instance. Ideal for disposable, low-frequency windows.
-- **`Hide`**: Simply calls `hide()` on close, preserving memory state (e.g. scroll position, input contents) for quick subsequent toggles.
+Secondary windows (such as settings dialogs, terminal logs, or debug panels) can adopt two closing strategies when the close button is clicked (either the titlebar close button or the dialog's bottom-right close button):
+- **`Destroy` (Default)**: Calls `hide()` and clears the handle holder, completely releasing the native window and Slint component resources. Ideal for disposable, low-frequency windows.
+- **`Hide`**: Calls `hide()` on close, preserving memory state (e.g. scroll position, input contents) in the handle holder; subsequent calls to `open` will automatically reuse the existing instance and re-show it via `show()`.
 
 In [src/main.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/main.rs), pass the `CloseBehavior` enum to the window opener:
 
 ```rust
 // Mode A: Destroy on close (default, frees resources)
 windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Destroy)?;
+windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Destroy)?;
 
-// Mode B: Hide on close (keeps state alive)
+// Mode B: Hide on close (keeps state alive and reuses instance on next open)
 windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Hide)?;
+windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Hide)?;
 ```
 
 ---

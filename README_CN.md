@@ -162,21 +162,21 @@ let frame = WindowFrame::new(&terminal, Arc::new(TerminalTitlebarAdapter::new(bu
 
 ### 2. 子窗口关闭行为：隐藏 (Hide) 还是 销毁 (Destroy)？
 
-在桌面应用中，二级窗口（如设置面板、终端日志、调试器等）在被用户点击关闭按钮时通常有两种策略：
-- **`Destroy`（销毁模式）**：彻底释放原生窗口及 Slint 组件资源，适合用完即弃或低频打开的窗口；
-- **`Hide`（隐藏模式）**：窗口关闭时仅调用 `hide()`，内存中的组件实例及输入状态（如日志滚动位置、输入框内容）依然保留，再次点击打开时直接 `show()`。
+在桌面应用中，二级窗口（如设置面板、终端日志、调试器等）在被用户点击关闭按钮（无论是标题栏右上角关闭按钮还是内容区右下角“关闭”按钮）时通常有两种策略：
+- **`Destroy`（销毁模式，默认）**：调用 `hide()` 隐藏窗口并清空句柄持有器，彻底释放原生窗口及 Slint 组件资源，适合用完即弃或低频打开的窗口；
+- **`Hide`（隐藏模式）**：窗口关闭时调用 `hide()` 隐藏窗口，内存中的组件实例及状态（如日志滚动位置、输入框内容）依然保留；再次点击打开时，`open` 函数会智能复用已存在的实例并直接 `show()`。
 
 在 [src/main.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/main.rs) 中，通过 `CloseBehavior` 枚举指定行为：
 
 ```rust
 // 方式 A：销毁模式（默认）
 windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Destroy)?;
+windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Destroy)?;
 
-// 方式 B：隐藏模式（保留状态）
+// 方式 B：隐藏模式（保留状态，再次打开智能复用）
 windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Hide)?;
+windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Hide)?;
 ```
-
-若使用的是 `CloseBehavior::Hide`，下次打开时 `open` 函数会智能复用已存在的实例并重新显示。
 
 ---
 
