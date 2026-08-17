@@ -8,6 +8,29 @@
 
 ---
 
+## 📷 效果预览
+
+### 1. 主窗口 (全组件与 Mica 背景材质)
+| 深浅色主题预览 A | 深浅色主题预览 B |
+| :---: | :---: |
+| <img width="1200" height="700" alt="主窗口预览 1" src="https://github.com/user-attachments/assets/78035e29-3ec2-486d-82e8-0ae661614e8c" /> | <img width="1200" height="700" alt="主窗口预览 2" src="https://github.com/user-attachments/assets/a9f55f5a-6795-4319-8181-c42b0ed08584" /> |
+
+### 2. 自绘终端窗口 (Custom Terminal)
+> 100% Slint 自绘标题栏与控制按钮，完美支持 Windows 11 Snap Layouts 贴靠布局菜单。
+
+| 预览 1 | 预览 2 |
+| :---: | :---: |
+| <img width="580" height="420" alt="自绘终端预览 1" src="https://github.com/user-attachments/assets/031d8a49-4ed9-472e-9916-1150e9101be0" /> | <img width="580" height="420" alt="自绘终端预览 2" src="https://github.com/user-attachments/assets/68979644-a408-4214-8fab-2e1cca4663ff" /> |
+
+### 3. 原生 DWM 按钮终端窗口 (Native Terminal)
+> 标题栏右侧最小化/最大化/关闭按钮由 Windows DWM 系统原生绘制与响应。
+
+| 预览 1 | 预览 2 |
+| :---: | :---: |
+| <img width="582" height="452" alt="原生终端预览 1" src="https://github.com/user-attachments/assets/fb6e35ab-7937-40d3-81a9-8d078aced88b" /> | <img width="582" height="452" alt="原生终端预览 2" src="https://github.com/user-attachments/assets/682d4825-fb33-4817-8998-047938fe5bf8" /> |
+
+---
+
 ## 📖 简介
 
 在 Windows 平台上使用 Slint 开发桌面应用时，通常会遇到一些平台特定的问题：

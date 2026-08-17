@@ -8,6 +8,29 @@ Demonstrates **DWM Mica backdrop material**, **CBT Hook startup flicker preventi
 
 ---
 
+## 📷 Preview
+
+### 1. Main Window (Mica Backdrop & Full Component Set)
+| Theme Preview A | Theme Preview B |
+| :---: | :---: |
+| <img width="1200" height="700" alt="Main Window Preview 1" src="https://github.com/user-attachments/assets/78035e29-3ec2-486d-82e8-0ae661614e8c" /> | <img width="1200" height="700" alt="Main Window Preview 2" src="https://github.com/user-attachments/assets/a9f55f5a-6795-4319-8181-c42b0ed08584" /> |
+
+### 2. Custom-Drawn Terminal Window (Custom Terminal)
+> 100% Slint custom-drawn titlebar and control buttons with full Windows 11 Snap Layouts menu support.
+
+| Preview 1 | Preview 2 |
+| :---: | :---: |
+| <img width="580" height="420" alt="Custom Terminal Preview 1" src="https://github.com/user-attachments/assets/031d8a49-4ed9-472e-9916-1150e9101be0" /> | <img width="580" height="420" alt="Custom Terminal Preview 2" src="https://github.com/user-attachments/assets/68979644-a408-4214-8fab-2e1cca4663ff" /> |
+
+### 3. Native DWM Caption Buttons Terminal Window (Native Terminal)
+> Min/Max/Close caption buttons rendered natively by Windows DWM.
+
+| Preview 1 | Preview 2 |
+| :---: | :---: |
+| <img width="582" height="452" alt="Native Terminal Preview 1" src="https://github.com/user-attachments/assets/fb6e35ab-7937-40d3-81a9-8d078aced88b" /> | <img width="582" height="452" alt="Native Terminal Preview 2" src="https://github.com/user-attachments/assets/682d4825-fb33-4817-8998-047938fe5bf8" /> |
+
+---
+
 ## 📖 Overview
 
 When building desktop applications on Windows with Slint, several platform-specific challenges often arise:
@@ -65,24 +88,24 @@ This project wraps basic Win32/DWM windowing primitives on top of Slint, providi
 ```text
 slint-windows-mica-template/
 ├── src/
-│   ├── main.rs                   # Entry point, window initialization & CBT Hook dispatch
+│   ├── main.rs                   # Entry point, window setup & CBT Hook orchestration
 │   ├── sys_info.rs               # Windows OS version & theme detection
-│   ├── platform/                 # Windows platform-level window infrastructure
-│   │   ├── attributes.rs         # Window attributes (Mica, Dark Mode, Corners, Escapes)
-│   │   ├── borderless.rs         # Win32 borderless subclassing & Snap Layouts processing
-│   │   ├── controls.rs           # Titlebar controls adapter & button callbacks
-│   │   ├── display.rs            # Multi-monitor cursor-following centering calculations
+│   ├── platform/                 # Windows platform windowing primitives
+│   │   ├── attributes.rs         # Window attributes (Mica, dark mode, corners, topmost, escape hatches)
+│   │   ├── borderless.rs         # Win32 borderless subclassing & Snap Layouts message handling
+│   │   ├── controls.rs           # Titlebar control adapters & button interactions
+│   │   ├── display.rs            # Multi-monitor active cursor centering logic
 │   │   ├── effects.rs            # Mica transparency & backdrop linkage
-│   │   ├── hook.rs               # CBT Hook zero-flicker instant injection guard
+│   │   ├── hook.rs               # CBT Hook zero-flicker synchronous injection guard
 │   │   └── mod.rs
-│   └── windows/                  # Concrete UI windows logic
-│       ├── app/                  # Main window logic (custom-drawn titlebar controls)
+│   └── windows/                  # Window business logic implementations
+│       ├── app/                  # Main window logic (custom-drawn titlebar & controls)
 │       │   ├── attributes.rs     # Main window DWM attributes configuration
 │       │   ├── controls.rs       # Main window titlebar controls binding
 │       │   └── mod.rs            # Main window lifecycle management
 │       ├── custom_terminal/      # Custom terminal child window logic
-│       ├── native_terminal/      # DWM native caption buttons child window logic & subclassing
-│       └── mod.rs                # Public window types export (e.g. CloseBehavior)
+│       ├── native_terminal/      # Native DWM caption button child window logic & subclassing
+│       └── mod.rs                # Common window types export (e.g. CloseBehavior)
 ├── ui/
 │   ├── app-window/               # Main window Slint UI
 │   ├── custom-terminal-window/   # Custom terminal child window Slint UI
@@ -93,34 +116,34 @@ slint-windows-mica-template/
 
 ---
 
-## 🚀 Quick Start
+## 🚀 Getting Started
 
 ### Prerequisites
-- **Rust** (Latest stable version recommended, Edition 2024 supported)
-- **Windows 11 / Windows 10** (Mica effect requires Windows 11 Build 22000+)
+- **Rust** (Latest stable recommended, supports Edition 2024)
+- **Windows 11 / Windows 10** (Mica backdrop effect requires Windows 11 Build 22000+)
 
 ### Running Locally
 ```bash
-# 1. Clone this repository
+# 1. Clone the repository
 git clone https://github.com/your-username/slint-windows-mica-template.git
 cd slint-windows-mica-template
 
-# 2. Build and run locally
+# 2. Build and run
 cargo run
 ```
 
 ---
 
-## 💡 Usage & Developer Guide (Cookbook)
+## 💡 Usage & Customization Guide (Cookbook)
 
-This section covers common window customization scenarios and secondary development workflows.
+This section demonstrates how to customize common window behaviors based on this template.
 
-### 1. Disable / Hide Titlebar Buttons (Minimize / Maximize / Close)
+### 1. Disabling/Hiding Titlebar Buttons (Minimize / Maximize / Close)
 
-The template uses `TitlebarButtons` to configure both non-client area Win32 hit-testing and Slint UI button visibility simultaneously.
+The project manages non-client hit-testing and Slint UI button visibility uniformly through `TitlebarButtons`.
 
-#### For the Main Window
-Open [src/windows/app/mod.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/windows/app/mod.rs) and modify `TitlebarButtons`:
+#### Customizing in the Main Window
+In [src/windows/app/mod.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/windows/app/mod.rs), modify `TitlebarButtons`:
 
 ```rust
 // Example: Disable minimize and maximize buttons, keeping only the close button
@@ -144,12 +167,12 @@ pub fn setup(app: &AppWindow, frame: &WindowFrame<AppWindow>, hook_ok: bool) {
 }
 ```
 
-> **How it works**: When `show_minimize` or `show_maximize` is set to `false`:
-> 1. The Win32 non-client hit-test handler (`WM_NCHITTEST`) skips the corresponding button area, preventing accidental Snap Layouts or minimizing triggers.
-> 2. The Slint UI binding (`WindowControls.show-minimize` / `show-maximize`) automatically hides the corresponding button visual element.
+> **Mechanism**: Setting `show_minimize` or `show_maximize` to `false`:
+> 1. Informs Win32 message handling (`WM_NCHITTEST`) to skip hit-testing for those regions, preventing hovering over blank space from triggering Snap Layouts;
+> 2. Automatically hides corresponding Slint UI button elements (e.g. `WindowControls.show-minimize`).
 
-#### For Custom Child Windows
-In [src/windows/custom_terminal/mod.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/windows/custom_terminal/mod.rs), customize the `buttons` struct inside `open`:
+#### Customizing in the Custom Child Window
+In [src/windows/custom_terminal/mod.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/windows/custom_terminal/mod.rs)'s `open` function:
 ```rust
 let buttons = TitlebarButtons {
     show_minimize: false,
@@ -161,70 +184,70 @@ let frame = WindowFrame::new(&terminal, Arc::new(TerminalTitlebarAdapter::new(bu
 
 ---
 
-### 2. Window Close Behavior: Hide vs. Destroy
+### 2. Secondary Window Close Behavior: Hide vs. Destroy
 
-Secondary windows (such as settings dialogs, terminal logs, or debug panels) can adopt two closing strategies when the close button is clicked (either the titlebar close button or the dialog's bottom-right close button):
-- **`Destroy` (Default)**: Calls `hide()` and clears the handle holder, completely releasing the native window and Slint component resources. Ideal for disposable, low-frequency windows.
-- **`Hide`**: Calls `hide()` on close, preserving memory state (e.g. scroll position, input contents) in the handle holder; subsequent calls to `open` will automatically reuse the existing instance and re-show it via `show()`.
+Secondary windows (settings panels, terminal logs, debugger overlays) typically adopt one of two strategies when dismissed:
+- **`Destroy` (Default)**: Calls `hide()` and clears the handle holder, releasing the native window and Slint component instances. Ideal for one-shot or infrequent windows;
+- **`Hide`**: Calls `hide()` while keeping the component instance and state (e.g. scroll position, input text) in memory; when opened again, `open` reuses the existing instance and calls `show()`.
 
-In [src/main.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/main.rs), pass the `CloseBehavior` enum to the window opener:
+In [src/main.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/main.rs), configure this behavior via `CloseBehavior`:
 
 ```rust
-// Mode A: Destroy on close (default, frees resources)
+// Mode A: Destroy on close (default)
 windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Destroy)?;
 windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Destroy)?;
 
-// Mode B: Hide on close (keeps state alive and reuses instance on next open)
+// Mode B: Hide on close (preserves state, smart reuse on next open)
 windows::custom_terminal::open(handle_custom.clone(), windows::CloseBehavior::Hide)?;
 windows::native_terminal::open(handle_native.clone(), windows::CloseBehavior::Hide)?;
 ```
 
 ---
 
-### 3. Window Attributes & Visual Material (WindowAttributes)
+### 3. Configuring Window Styles & Visual Attributes (WindowAttributes)
 
-Each window configures its DWM effects and Win32 styles declaratively in its dedicated `attributes.rs` (e.g. [src/windows/app/attributes.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/windows/app/attributes.rs)):
+Each window configures DWM effects and Win32 styles declaratively in its dedicated `attributes.rs` (e.g., [src/windows/app/attributes.rs](file:///d:/RustProject/SlintStudy/slint-windows-mica-template/src/windows/app/attributes.rs)).
 
 ```rust
 use crate::platform::attributes::{CornerPreference, WindowAttributes, is_system_dark_mode};
 
 pub fn get_attributes() -> WindowAttributes {
     WindowAttributes::new()
-        // ── 1. DWM Material ──
-        .with_mica()              // Win11 standard Mica material
-        // .with_acrylic()        // Win11 Acrylic translucent blur
-        // .with_tabbed()         // Win11 Tabbed material
+        // ── 1. DWM Visual Backdrop ──
+        .with_mica()              // Win11 standard Mica backdrop
+        // .with_acrylic()        // Win11 Acrylic translucent blur backdrop
+        // .with_tabbed()         // Win11 Tabbed backdrop
         
-        // ── 2. Dark / Light Mode ──
-        .with_dark_mode(is_system_dark_mode()) // Follow system theme or force true/false
+        // ── 2. Dark/Light Mode ──
+        .with_dark_mode(is_system_dark_mode()) // Follow system theme, or pass true / false explicitly
         
         // ── 3. Corner Preference ──
-        .with_corner(CornerPreference::Round)  // Round / RoundSmall / DoNotRound
+        .with_corner(CornerPreference::Round)  // Round (standard rounded) / RoundSmall / DoNotRound
         
         // ── 4. Taskbar & Topmost ──
-        .with_app_window(true)      // Display icon in taskbar
-        // .with_tool_window(true)  // Tool window (hidden from taskbar & Alt+Tab)
-        // .with_always_on_top(true)// Always on top
+        .with_app_window(true)      // Ensure independent icon in taskbar
+        // .with_tool_window(true)  // Set as tool window (hidden from taskbar & Alt+Tab)
+        // .with_always_on_top(true)// Keep window always on top
         
-        // ── 5. Input Behavior ──
-        // .with_click_through(true)// Mouse click-through
-        // .with_no_activate(true)  // Do not steal focus on click
+        // ── 5. Interaction Styles ──
+        // .with_click_through(true)// Enable click-through
+        // .with_no_activate(true)  // Do not take focus on click
 }
 ```
 
 ---
 
-### 4. Creating a New Custom Window
+### 4. Workflow for Adding a New Custom Window
 
-To add a new window (e.g. `SettingsWindow`), follow these 4 steps:
+To add a new window (e.g., `SettingsWindow`), follow these 4 steps:
 
-#### Step 1: Define Slint UI
+#### Step 1: Write the Slint UI
 Create `ui/settings-window/settings-window.slint`:
 ```slint
 import { Titlebar } from "../app-window/titlebar.slint";
 
 export component SettingsWindow inherits Window {
-    title: "Settings";
+    title: "设置 (Settings)";
     in-out property <bool> is-mica-active: false;
     background: root.is-mica-active ? #00000000 : #202020;
     width: 600px;
@@ -233,13 +256,16 @@ export component SettingsWindow inherits Window {
 
     VerticalLayout {
         Titlebar { title: root.title; }
-        // Your content here...
+        // Your UI content...
     }
 }
 ```
 
-#### Step 2: Implement Rust Module
-Create `src/windows/settings/` with `attributes.rs` and `mod.rs`:
+#### Step 2: Create the Rust Window Module
+Create `src/windows/settings/`:
+- `attributes.rs`: Configure `WindowAttributes` (Mica, corners, etc.).
+- `mod.rs`: Implement the `open` function using `CbtHookGuard::install` for zero-flicker injection, and call `center_component_on_active_monitor`.
+
 ```rust
 use crate::SettingsWindow;
 use crate::platform::{CbtHookGuard, WindowFrame, apply_mica_effect, center_component_on_active_monitor};
@@ -249,9 +275,9 @@ use windows::Win32::Foundation::HWND;
 pub fn open() -> Result<(), slint::PlatformError> {
     let frame_holder = Arc::new(Mutex::new(None));
     
-    // 1. CBT Hook for zero-flicker startup
+    // 1. CBT Hook prevents startup flickering
     let hook = CbtHookGuard::install(
-        Some("Settings".to_string()),
+        Some("设置 (Settings)".to_string()),
         {
             let frame_holder = Arc::clone(&frame_holder);
             move |hwnd_isize| {
@@ -265,66 +291,66 @@ pub fn open() -> Result<(), slint::PlatformError> {
     let hook_ok = hook.is_ok();
     if let Ok(guard) = hook { std::mem::forget(guard); }
 
-    // 2. Initialize component & frame
+    // 2. Instantiate component & frame
     let window = SettingsWindow::new()?;
     let frame = WindowFrame::new(&window, Arc::new(/* your TitlebarAdapter */));
     *frame_holder.lock().unwrap() = Some(frame.clone());
 
-    // 3. Center and apply Mica
+    // 3. Center & Visual Effects
     center_component_on_active_monitor(&window, 600.0, 400.0);
     apply_mica_effect(&window, |w| w.set_is_mica_active(true), hook_ok);
 
-    // 4. Show window
+    // 4. Show
     window.show()?;
     Ok(())
 }
 ```
 
 #### Step 3: Register in `main.rs`
-Export the component in `ui/` and bind user interaction in `src/main.rs`.
+Export in `ui/` entry file and wire up the button click handler in `src/main.rs`!
 
 ---
 
 ### 5. Custom-Drawn Titlebar vs. DWM Native Buttons
 
-| Feature | Custom Titlebar (`app` / `custom_terminal`) | DWM Native Buttons (`native_terminal`) |
+| Feature | Custom-Drawn Titlebar (`app` / `custom_terminal`) | DWM Native Buttons (`native_terminal`) |
 | :--- | :--- | :--- |
-| **Look & Feel** | 100% Slint custom UI with customizable icons, padding, & theme | Native Windows DWM caption buttons |
-| **Win11 Snap Layouts** | ✅ Supported (via `WM_NCHITTEST` returning `HTMAXBUTTON`) | ✅ Supported (native) |
-| **Inactive Window Dimming** | ✅ Supported (via `WM_NCACTIVATE`) | ✅ Supported (native) |
-| **Best For** | Modern desktop apps with consistent brand design systems | Utility tools requiring strict system-native appearance |
+| **Appearance & Styling** | 100% Slint drawn, customizable icons, spacing, and palettes | Windows DWM native Min/Max/Close caption buttons |
+| **Win11 Snap Layouts** | ✅ Supported (via `WM_NCHITTEST` returning `HTMAXBUTTON`) | ✅ Supported (native OS behavior) |
+| **Inactive Fade Effect**| ✅ Supported (linked via `WM_NCACTIVATE`) | ✅ Supported (native OS behavior) |
+| **Best For** | Modern desktop applications with unified custom branding | Utilities aiming for seamless consistency with OS controls |
 
 ---
 
 ### 6. Advanced Escape Hatches
 
-For direct Win32 API access or undocumented DWM attributes:
+If you need to invoke custom Windows APIs or undocumented DWM attribute IDs:
 
 ```rust
 WindowAttributes::new()
-    // Escape Hatch 1: Direct DWM attribute injection
+    // Escape Hatch 1: Pass raw DWM attribute ID and data directly to HWND
     .with_raw_dwm_attribute(1029 /* DWMWA_MICA_EFFECT */, 1u32)
-    // Escape Hatch 2: Raw HWND access during CBT Hook capture
+    // Escape Hatch 2: Access raw HWND closure when window is captured by CBT Hook
     .with_custom_action(|hwnd: windows_sys::Win32::Foundation::HWND| {
-        // Execute arbitrary Win32 APIs here
+        // Execute any Win32 APIs here
         println!("Raw HWND: {:?}", hwnd);
     })
 ```
 
 ---
 
-## ⚠️ Notes & Troubleshooting
+## ⚠️ Known Notes & Troubleshooting
 
-### 1. NVIDIA OpenGL Transparent Background Turning Black
-* **Symptom**: On NVIDIA GPU systems, using OpenGL-based rendering backends (such as FemtoVG / Skia-OpenGL) may cause transparent window regions to turn black.
-* **Cause**: NVIDIA driver's `OpenGL GDI compatibility` defaults to "Auto" or "Prefer performance", which interferes with DWM alpha transparency.
+### 1. NVIDIA OpenGL Background Transparency
+* **Symptom**: On NVIDIA GPU devices with OpenGL rendering backends (FemtoVG / Skia-OpenGL), transparent window regions may render as black solid background.
+* **Root Cause**: NVIDIA driver's `OpenGL GDI Compatibility` defaults to "Auto" or "Prefer Performance", breaking DWM alpha transparency.
 * **Solutions**:
-  1. **GPU Driver Settings**: In `NVIDIA Control Panel` -> `Manage 3D settings` -> `Global Settings`, set `OpenGL GDI compatibility` to **"Prefer compatibility"**;
-  2. **Driver-independent workaround**: Use the **`software`** or **`renderer-wgpu`** backend instead.
+  1. **Driver Settings**: In `NVIDIA Control Panel` -> `Manage 3D settings` -> `Global Settings`, change `OpenGL GDI Compatibility` to **"Prefer Compatibility"**;
+  2. **Driver-agnostic Backends**: Use **`software`** or **`renderer-wgpu` (Direct3D 12 / Vulkan)** backend.
 
-### 2. DWM Native Caption Buttons & Flicker Note
-* **Interaction Details**: In native window mode, caption buttons are directly managed by Windows DWM. This template handles top-aligned `WM_NCCALCSIZE`, physical coordinate hit-testing, and `TrackMouseEvent` hover state updates in `src/windows/native_terminal/borderless.rs`.
-* **Known Issue (DWM Flicker at (0, 0))**: When opening the native window, there is a probability of a brief DWM flicker at screen coordinates `(0, 0)`, which currently cannot be fixed. If a completely flicker-free experience is needed, using the custom titlebar mode (`custom_terminal`) is recommended.
+### 2. DWM Native Caption Buttons Interaction & Flicker Note
+* **Interaction Details**: In native window mode, caption buttons are managed by Windows DWM. This template handles top-aligned `WM_NCCALCSIZE`, physical coordinate hit-testing, and `TrackMouseEvent` hover state tracking in `src/windows/native_terminal/borderless.rs`.
+* **Known Limitation ((0, 0) DWM Flicker)**: Native mode windows may occasionally produce a brief DWM flicker at coordinates `(0, 0)` upon opening. For completely flicker-free appearance, the custom titlebar mode (`custom_terminal`) is recommended.
 
 ---
 
