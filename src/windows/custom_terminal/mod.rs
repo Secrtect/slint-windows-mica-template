@@ -41,12 +41,12 @@ pub fn open(
         Arc::new(Mutex::new(None));
 
     // 如果是 Hide 模式，且之前已经创建过实例，则直接重新显示已存在的窗口
-    if close_behavior == CloseBehavior::Hide {
-        if let Some(existing) = handle.borrow().as_ref() {
-            existing.show()?;
-            println!("[CustomTerminal] 复用已有窗口实例并重新显示 (Hide 模式)");
-            return Ok(());
-        }
+    if close_behavior == CloseBehavior::Hide
+        && let Some(existing) = handle.borrow().as_ref()
+    {
+        existing.show()?;
+        println!("[CustomTerminal] 复用已有窗口实例并重新显示 (Hide 模式)");
+        return Ok(());
     }
 
     // ── 1. 安装 CBT Hook（按 TERMINAL_TITLE 匹配并在 CreateWindowExW 瞬间注入属性 + 子类化） ──

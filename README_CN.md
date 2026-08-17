@@ -324,8 +324,9 @@ WindowAttributes::new()
   1. **修改显卡设置**：在 `NVIDIA 控制面板` -> `管理 3D 设置` -> `全局设置` 中，将 `OpenGL GDI 兼容性` 手动更改为 **“优先兼容性”**；
   2. **免修改驱动方案**：选用 **`software`（软件渲染）** 或 **`renderer-wgpu`（基于 Direct3D 12 / Vulkan）** 后端，不受此驱动选项限制。
 
-### 2. DWM 原生按钮交互细节
-* 原生窗口模式下，标题栏按钮区域由 Windows DWM 直接接管。本项目在 `src/windows/native_terminal/borderless.rs` 中处理了顶部对齐 `WM_NCCALCSIZE`、物理坐标命中测试以及 `TrackMouseEvent` 悬停状态更新。
+### 2. DWM 原生按钮交互与闪烁说明
+* **交互细节**：原生窗口模式下，标题栏按钮区域由 Windows DWM 直接接管。本项目在 `src/windows/native_terminal/borderless.rs` 中处理了顶部对齐 `WM_NCCALCSIZE`、物理坐标命中测试以及 `TrackMouseEvent` 悬停状态更新。
+* **已知问题（(0, 0) 坐标 DWM 闪烁）**：原生窗口在打开时，有概率会在屏幕左上角 `(0, 0)` 产生一次短暂的 DWM 闪烁，该问题至今暂未修复。如果追求完全无闪烁的弹出体验，建议使用自绘标题栏模式（`custom_terminal`）。
 
 ---
 

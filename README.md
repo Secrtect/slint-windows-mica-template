@@ -322,8 +322,9 @@ WindowAttributes::new()
   1. **GPU Driver Settings**: In `NVIDIA Control Panel` -> `Manage 3D settings` -> `Global Settings`, set `OpenGL GDI compatibility` to **"Prefer compatibility"**;
   2. **Driver-independent workaround**: Use the **`software`** or **`renderer-wgpu`** backend instead.
 
-### 2. DWM Native Caption Buttons Interaction
-* In native window mode, caption buttons are directly managed by Windows DWM. This template handles top-aligned `WM_NCCALCSIZE`, physical coordinate hit-testing, and `TrackMouseEvent` hover state updates in `src/windows/native_terminal/borderless.rs`.
+### 2. DWM Native Caption Buttons & Flicker Note
+* **Interaction Details**: In native window mode, caption buttons are directly managed by Windows DWM. This template handles top-aligned `WM_NCCALCSIZE`, physical coordinate hit-testing, and `TrackMouseEvent` hover state updates in `src/windows/native_terminal/borderless.rs`.
+* **Known Issue (DWM Flicker at (0, 0))**: When opening the native window, there is a probability of a brief DWM flicker at screen coordinates `(0, 0)`, which currently cannot be fixed. If a completely flicker-free experience is needed, using the custom titlebar mode (`custom_terminal`) is recommended.
 
 ---
 

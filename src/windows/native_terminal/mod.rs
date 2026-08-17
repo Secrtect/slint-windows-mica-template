@@ -38,12 +38,12 @@ pub fn open(
         Arc::new(Mutex::new(None));
 
     // 如果是 Hide 模式，且之前已经创建过实例，则直接重新显示已存在的窗口
-    if close_behavior == CloseBehavior::Hide {
-        if let Some(existing) = handle.borrow().as_ref() {
-            existing.show()?;
-            println!("[NativeTerminal] 复用已有窗口实例并重新显示 (Hide 模式)");
-            return Ok(());
-        }
+    if close_behavior == CloseBehavior::Hide
+        && let Some(existing) = handle.borrow().as_ref()
+    {
+        existing.show()?;
+        println!("[NativeTerminal] 复用已有窗口实例并重新显示 (Hide 模式)");
+        return Ok(());
     }
 
     // ── 1. 安装 CBT Hook（按 NATIVE_TERMINAL_TITLE 匹配并在 CreateWindowExW 瞬间注入属性 + 子类化） ──
@@ -64,13 +64,13 @@ pub fn open(
                         GetWindowLongPtrW, GWL_STYLE, GWL_EXSTYLE,
                     };
                     use windows_sys::Win32::UI::WindowsAndMessaging::{
-                        WS_POPUP, WS_CAPTION, WS_OVERLAPPED,
+                        WS_POPUP, WS_CAPTION, WS_CHILD,
                     };
                     let style = unsafe { GetWindowLongPtrW(hwnd_isize, GWL_STYLE) } as u32;
                     let ex_style = unsafe { GetWindowLongPtrW(hwnd_isize, GWL_EXSTYLE) } as u32;
                     let has_popup = (style & WS_POPUP) != 0;
                     let has_caption = (style & WS_CAPTION) != 0;
-                    let has_overlapped = (style & WS_OVERLAPPED) == 0; // WS_OVERLAPPED = 0
+                    let has_overlapped = (style & (WS_POPUP | WS_CHILD)) == 0;
                     // WS_EX_TOOLWINDOW = 0x00000080, WS_EX_APPWINDOW = 0x00040000
                     let has_toolwindow = (ex_style & 0x00000080) != 0;
                     let has_appwindow = (ex_style & 0x00040000) != 0;

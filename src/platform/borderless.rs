@@ -384,17 +384,17 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
                     _ => None,
                 };
 
-                if let Some(is_max) = is_maximized {
-                    if !state_ptr.is_null() {
-                        let state = unsafe { &*state_ptr };
-                        let callback = state.on_maximized.lock().unwrap_or_else(|e| e.into_inner()).clone();
-                        let weak = state.weak.clone();
-                        let _ = weak.upgrade_in_event_loop(move |component| {
-                            if let Some(cb) = callback {
-                                cb(&component, is_max);
-                            }
-                        });
-                    }
+                if let Some(is_max) = is_maximized
+                    && !state_ptr.is_null()
+                {
+                    let state = unsafe { &*state_ptr };
+                    let callback = state.on_maximized.lock().unwrap_or_else(|e| e.into_inner()).clone();
+                    let weak = state.weak.clone();
+                    let _ = weak.upgrade_in_event_loop(move |component| {
+                        if let Some(cb) = callback {
+                            cb(&component, is_max);
+                        }
+                    });
                 }
                 unsafe { DefSubclassProc(hwnd, msg, wparam, lparam) }
             }
@@ -537,12 +537,11 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
             WM_NCMOUSEMOVE => {
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
-                    let hit = wparam.0 as usize;
-                    let pressed = state
+                    let hit = wparam.0;
+                    let pressed = *state
                         .pressed_hit
                         .lock()
-                        .unwrap_or_else(|e| e.into_inner())
-                        .clone();
+                        .unwrap_or_else(|e| e.into_inner());
 
                     let weak = state.weak.clone();
                     let adapter = state.adapter.clone();
@@ -621,7 +620,7 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
 
             // 标题栏按钮释放
             WM_NCLBUTTONUP | WM_LBUTTONUP => {
-                let hit = wparam.0 as usize;
+                let hit = wparam.0;
                 if !state_ptr.is_null() {
                     let state = unsafe { &*state_ptr };
                     let pressed = state.pressed_hit.lock().unwrap_or_else(|e| e.into_inner()).take();
@@ -646,20 +645,20 @@ impl<T: ComponentHandle + 'static> WindowFrame<T> {
                             hit == HTCLOSE as usize,
                         );
 
-                        if let Some(pressed_hit) = pressed {
-                            if pressed_hit == hit {
-                                match hit {
-                                    x if x == HTMINBUTTON as usize => {
-                                        adapter.on_minimize_clicked(&component, &frame);
-                                    }
-                                    x if x == HTMAXBUTTON as usize => {
-                                        adapter.on_maximize_clicked(&component, &frame);
-                                    }
-                                    x if x == HTCLOSE as usize => {
-                                        adapter.on_close_clicked(&component, &frame);
-                                    }
-                                    _ => {}
+                        if let Some(pressed_hit) = pressed
+                            && pressed_hit == hit
+                        {
+                            match hit {
+                                x if x == HTMINBUTTON as usize => {
+                                    adapter.on_minimize_clicked(&component, &frame);
                                 }
+                                x if x == HTMAXBUTTON as usize => {
+                                    adapter.on_maximize_clicked(&component, &frame);
+                                }
+                                x if x == HTCLOSE as usize => {
+                                    adapter.on_close_clicked(&component, &frame);
+                                }
+                                _ => {}
                             }
                         }
                     });
