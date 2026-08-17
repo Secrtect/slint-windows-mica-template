@@ -1,10 +1,10 @@
 import { Button, ScrollView, Palette } from "std-widgets.slint";
 import { TerminalTitlebar } from "./titlebar.slint";
 
-// 单条终端日志数据项
+// 原生终端窗口组件 / Native terminal window component
 export component NativeTerminalWindow inherits Window {
 
-    // 窗口尺寸与首选配置
+    // 窗口尺寸与首选配置 / Window dimensions and preferred configuration
     in-out property <length> init-width: 580px;
     in-out property <length> init-height: 420px;
 
@@ -13,22 +13,24 @@ export component NativeTerminalWindow inherits Window {
     min-width: 480px;
     min-height: 300px;
 
-    // Mica 状态与背景适配
+    // Mica 状态与背景适配 / Mica active status and background styling
     in-out property <bool> is-mica-active: false;
     background: self.is-mica-active ? transparent : Palette.background;
 
+    // 窗口标题（保持原样供 CBT Hook 匹配）/ Window title (kept as-is for CBT Hook matching)
     title: "原生终端日志 (Console Output)";
     no-frame: false;
 
-    // 实时终端日志数据列表 (控制台输出行)
+    // 实时终端日志数据列表 / Real-time terminal log lines
     in-out property <[string]> logs: [];
 
+    // 回调事件 / Callback events
     callback close-requested();
     callback copy-log();
     callback drag();
     callback double-click();
 
-    // 根卡片外壳 (带圆角剪切)
+    // 根卡片外壳 (带圆角剪切) / Root card container (with clipped corners)
     Rectangle {
         width: 100%;
         height: 100%;
@@ -41,6 +43,7 @@ export component NativeTerminalWindow inherits Window {
             spacing: 0px;
 
             // 1. 沉浸式标题栏 (36px, 仅拖拽区，按钮由 DWM 系统原生绘制)
+            // 1. Immersive titlebar (36px, drag area only; caption buttons rendered natively by DWM)
             TerminalTitlebar {
                 title: root.title;
                 drag => {
@@ -51,7 +54,7 @@ export component NativeTerminalWindow inherits Window {
                 }
             }
 
-            // 2. 日志容器与底部操作区域
+            // 2. 日志容器与底部操作区域 / 2. Log container and bottom action area
             VerticalLayout {
                 padding-left: 16px;
                 padding-right: 16px;
@@ -61,6 +64,7 @@ export component NativeTerminalWindow inherits Window {
                 vertical-stretch: 1;
 
                 // 终端日志列表面板 (自动适应深浅色模式)
+                // Terminal log list panel (adaptive to dark/light mode)
                 log-box := Rectangle {
                     vertical-stretch: 1;
                     border-radius: 8px;
@@ -91,20 +95,22 @@ export component NativeTerminalWindow inherits Window {
                 }
 
                 // 3. 底部按钮组 (统一 36px 高度与边框模型)
+                // 3. Bottom button group (unified 36px height)
                 HorizontalLayout {
                     alignment: end;
                     spacing: 8px;
 
                     // 复制日志按钮 (Secondary 样式 - 使用系统 Palette 调色板)
+                    // Copy log button (Secondary style - uses system Palette)
                     copy-btn := Rectangle {
-                        width: 96px;
+                        width: 130px;
                         height: 36px;
                         border-radius: 4px;
                         border-width: 1px;
                         border-color: Palette.border;
                         background: Palette.color-scheme == ColorScheme.dark ? #2d2d2d : #ffffff;
 
-                        // 悬停/按压遮罩
+                        // 悬停/按压遮罩 / Hover and pressed overlay
                         Rectangle {
                             border-radius: 3px;
                             background: copy-touch.pressed
@@ -122,8 +128,8 @@ export component NativeTerminalWindow inherits Window {
                         }
 
                         Text {
-                            text: "复制日志";
-                            font-size: 13px;
+                            text: "复制日志 / Copy";
+                            font-size: 12px;
                             font-family: "Microsoft YaHei UI";
                             color: Palette.foreground;
                             horizontal-alignment: center;
@@ -132,15 +138,16 @@ export component NativeTerminalWindow inherits Window {
                     }
 
                     // 关闭按钮 (Primary 样式 - 使用系统 Palette 调色板)
+                    // Close button (Primary style - uses system Palette)
                     close-dialog-btn := Rectangle {
-                        width: 80px;
+                        width: 96px;
                         height: 36px;
                         border-radius: 4px;
                         border-width: 1px;
                         border-color: transparent;
                         background: Palette.accent-background;
 
-                        // 悬停/按压遮罩
+                        // 悬停/按压遮罩 / Hover and pressed overlay
                         Rectangle {
                             border-radius: 3px;
                             background: close-dialog-touch.pressed
@@ -156,8 +163,8 @@ export component NativeTerminalWindow inherits Window {
                         }
 
                         Text {
-                            text: "关闭";
-                            font-size: 13px;
+                            text: "关闭 / Close";
+                            font-size: 12px;
                             font-family: "Microsoft YaHei UI";
                             color: Palette.accent-foreground;
                             horizontal-alignment: center;

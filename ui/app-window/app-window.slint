@@ -17,17 +17,18 @@ import {
     GroupBox,
 } from "std-widgets.slint";
 
-// 新增：引入系统调色板单例
+// 引入系统调色板单例 / Import system palette singleton
 import { Palette } from "std-widgets.slint";
-// 1. 导入我们写的无边框组件
+// 1. 导入无边框标题栏与控件组件 / 1. Import borderless titlebar and controls
 import { Titlebar, WindowControls } from "./titlebar.slint";
 
-// 2. 导出 WindowControls 使得 Rust 端可以访问它
+// 2. 导出 WindowControls 使得 Rust 端可以访问 / 2. Export WindowControls for Rust-side access
 export {
     WindowControls,
 }
 
-// 导入并导出两种终端窗口组件，供 Rust 端在 slint::include_modules!() 中生成对应的结构体
+// 导入并导出两种终端窗口组件，供 Rust 端在 slint::include_modules!() 中生成结构体
+// Import and export both terminal window components for Rust code generation
 import {
     CustomTerminalWindow,
 } from "../custom-terminal-window/custom-terminal-window.slint";
@@ -35,138 +36,147 @@ import {
     NativeTerminalWindow,
 } from "../native-terminal-window/native-terminal-window.slint";
 export { CustomTerminalWindow, NativeTerminalWindow }
+
 export component AppWindow inherits Window {
-    // ==================== 导出初始宽高属性 ====================
+    // 导出初始宽高属性 / Export initial width and height properties
     in-out property <length> init-width: 1200px;
     in-out property <length> init-height: 700px;
 
-    // 将窗口的首选尺寸绑定到上述属性
+    // 绑定首选尺寸 / Bind preferred window dimensions
     preferred-width: init-width;
     preferred-height: init-height;
-    // ============================================================
-    // 依然保留这个让 Rust 控制的变量
+
+    // Mica 状态控制（由 Rust 侧注入） / Mica active status (controlled by Rust)
     in-out property <bool> is-mica-active: false;
 
-    // 修改：如果 Mica 成功开启则透明；如果失败，则使用系统自带的深浅色背景色 (Palette.background)
+    // Mica 成功开启则透明，否则使用系统 Palette.background
+    // Transparent if Mica active, fallback to Palette.background if inactive
     background: self.is-mica-active ? transparent : Palette.background;
 
+    // 窗口标题（保持原样供 CBT Hook 精确匹配）
+    // Window title (kept as-is for CBT Hook title matching)
     title: "Slint标准组件全家桶";
 
-    // 3. 开启无边框，并限制最小缩放尺寸
+    // 开启无边框，限制最小尺寸 / Enable borderless, limit minimum dimensions
     no-frame: true;
     min-width: 600px;
     min-height: 500px;
 
-    // 窗口间通信回调
+    // 窗口间通信回调 / Window inter-communication callbacks
     callback open-custom-terminal-window();
     callback open-native-terminal-window();
 
-    // 状态数据管理
+    // 状态数据管理 / State data management
     in-out property <string> input-text: "";
     in-out property <float> slider-val: 50.0;
     in-out property <int> spin-val: 10;
     in-out property <bool> switch-status: false;
 
-    // 列表数据模型
-    private property <[StandardListViewItem]> list-data: [{ text: "选项 A" }, { text: "选项 B" }, { text: "选项 C" }];
-    // 表格数据模型
-    private property <[[StandardListViewItem]]> table-rows: [
-        [{ text: "1" }, { text: "张三" }, { text: "在线" }],
-        [{ text: "2" }, { text: "李四" }, { text: "离线" }],
-        [{ text: "3" }, { text: "王五" }, { text: "忙碌" }]
+    // 列表数据模型 / List view data model
+    private property <[StandardListViewItem]> list-data: [
+        { text: "选项 A / Option A" },
+        { text: "选项 B / Option B" },
+        { text: "选项 C / Option C" }
     ];
 
-    // 4. 用垂直布局将 Titlebar 和原内容结合
+    // 表格数据模型 / Table view data model
+    private property <[[StandardListViewItem]]> table-rows: [
+        [{ text: "1" }, { text: "张三 (Alice)" }, { text: "在线 (Online)" }],
+        [{ text: "2" }, { text: "李四 (Bob)" }, { text: "离线 (Offline)" }],
+        [{ text: "3" }, { text: "王五 (Charlie)" }, { text: "忙碌 (Busy)" }]
+    ];
+
+    // 主布局 / Main layout
     VerticalLayout {
         padding: 0px;
         spacing: 0px;
 
-        // 放置自定义标题栏
+        // 自定义标题栏 / Custom titlebar
         Titlebar {
-            title: "Slint Application";
+            title: root.title;
         }
 
-        // 选项卡组件，会自动撑满剩下的空间
+        // 选项卡容器 / Tab widget container
         TabWidget {
-            // --- 第一个标签页：基础输入与控制组件 ---
+            // --- 第一个标签页：基础控件 / Tab 1: Basic Controls ---
             Tab {
-                title: "基础控件";
+                title: "基础控件 / Basic Controls";
                 ScrollView {
                     VerticalBox {
                         padding: 20px;
                         spacing: 20px;
                         alignment: start;
 
-                        // 1. GroupBox - 分组框组件
+                        // 1. GroupBox - 按钮与开关 / Buttons & Toggles
                         GroupBox {
-                            title: "按钮与开关 (Buttons & Toggles)";
+                            title: "按钮与开关 / Buttons & Toggles";
                             HorizontalBox {
                                 spacing: 15px;
                                 alignment: start;
 
                                 Button {
-                                    text: "打开自绘终端窗口";
+                                    text: "打开自绘终端窗口 / Custom Terminal";
                                     primary: true;
                                     clicked => { root.open-custom-terminal-window(); }
                                 }
 
                                 Button {
-                                    text: "打开原生终端窗口";
+                                    text: "打开原生终端窗口 / Native Terminal";
                                     primary: true;
                                     clicked => { root.open-native-terminal-window(); }
                                 }
 
                                 CheckBox {
-                                    text: "同意条款";
+                                    text: "同意条款 / Agree to Terms";
                                     checked: true;
                                 }
 
                                 Switch {
-                                    text: "启用通知";
+                                    text: "启用通知 / Enable Notifications";
                                     checked <=> switch-status;
                                 }
                             }
                         }
 
-                        // 2. GroupBox - 输入类组件
+                        // 2. GroupBox - 文本输入 / Text Inputs
                         GroupBox {
-                            title: "文本输入 (Inputs)";
+                            title: "文本输入 / Text Inputs";
                             VerticalBox {
                                 spacing: 12px;
                                 HorizontalBox {
                                     Text {
-                                        text: "单行输入: ";
+                                        text: "单行输入 / Single-line: ";
                                         vertical-alignment: center;
                                     }
 
                                     LineEdit {
-                                        placeholder-text: "请输入文字...";
+                                        placeholder-text: "请输入文字... / Enter text...";
                                         text <=> input-text;
                                     }
                                 }
 
                                 HorizontalBox {
                                     Text {
-                                        text: "多行输入: ";
+                                        text: "多行输入 / Multi-line: ";
                                         vertical-alignment: top;
                                     }
 
                                     TextEdit {
                                         height: 80px;
-                                        text: "这是多行文本组件的默认内容...\n支持换行。";
+                                        text: "这是多行文本组件的默认内容...\n支持换行。\nThis is default multi-line text content...";
                                     }
                                 }
                             }
                         }
 
-                        // 3. GroupBox - 数值调节组件
+                        // 3. GroupBox - 数值与选择 / Selectors & Spinners
                         GroupBox {
-                            title: "数值与选择 (Selectors)";
+                            title: "数值与选择 / Selectors & Spinners";
                             GridBox {
                                 spacing: 15px;
                                 Row {
                                     Text {
-                                        text: "滑块调节: ";
+                                        text: "滑块调节 / Slider: ";
                                         vertical-alignment: center;
                                     }
 
@@ -184,7 +194,7 @@ export component AppWindow inherits Window {
 
                                 Row {
                                     Text {
-                                        text: "数字微调: ";
+                                        text: "数字微调 / SpinBox: ";
                                         vertical-alignment: center;
                                     }
 
@@ -199,13 +209,13 @@ export component AppWindow inherits Window {
 
                                 Row {
                                     Text {
-                                        text: "下拉选择: ";
+                                        text: "下拉选择 / ComboBox: ";
                                         vertical-alignment: center;
                                     }
 
                                     ComboBox {
-                                        model: ["红茶", "绿茶", "咖啡", "果汁"];
-                                        current-value: "绿茶";
+                                        model: ["红茶 / Black Tea", "绿茶 / Green Tea", "咖啡 / Coffee", "果汁 / Juice"];
+                                        current-value: "绿茶 / Green Tea";
                                     }
 
                                     Rectangle { }
@@ -216,16 +226,16 @@ export component AppWindow inherits Window {
                 }
             }
 
-            // --- 第二个标签页：高级列表与数据视图 ---
+            // --- 第二个标签页：高级视图 / Tab 2: Advanced Views ---
             Tab {
-                title: "高级视图";
+                title: "高级视图 / Advanced Views";
                 HorizontalBox {
                     padding: 20px;
                     spacing: 20px;
 
                     VerticalBox {
                         Text {
-                            text: "标准列表 (StandardListView)";
+                            text: "标准列表 / StandardListView";
                             font-weight: 700;
                         }
 
@@ -236,15 +246,15 @@ export component AppWindow inherits Window {
 
                     VerticalBox {
                         Text {
-                            text: "标准表格 (StandardTableView)";
+                            text: "标准表格 / StandardTableView";
                             font-weight: 700;
                         }
 
                         StandardTableView {
                             columns: [
                                 { title: "ID", width: 50px },
-                                { title: "姓名", width: 120px },
-                                { title: "状态", width: 100px }
+                                { title: "姓名 / Name", width: 140px },
+                                { title: "状态 / Status", width: 120px }
                             ];
                             rows: table-rows;
                         }

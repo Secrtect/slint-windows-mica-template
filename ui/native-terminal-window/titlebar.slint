@@ -1,13 +1,14 @@
 import { Palette } from "std-widgets.slint";
 
+// 原生终端标题栏组件 / Native terminal titlebar component
 export component TerminalTitlebar inherits Rectangle {
+    // 标题文字（保持与 Rust CBT Hook 匹配的标题一致）/ Title text (matches Rust CBT Hook title)
     in property <string> title: "原生终端日志 (Console Output)";
 
     callback drag();
     callback double-click();
 
-    // 激活状态（自适应深浅色模式与激活调色）
-    // Active state (adaptive to dark/light mode and active palette)
+    // 激活状态（自适应深浅色模式与激活调色）/ Active state (adaptive to dark/light mode and active palette)
     in-out property <bool> is-active: true;
 
     private property <color> foreground-color:
@@ -44,7 +45,7 @@ export component TerminalTitlebar inherits Rectangle {
                 spacing: 8px;
                 alignment: start;
 
-                // 终端 Glyph 图标 >_
+                // 终端 Glyph 图标 >_ / Terminal glyph icon >_
                 Text {
                     text: ">_";
                     font-size: 15px;
@@ -54,7 +55,7 @@ export component TerminalTitlebar inherits Rectangle {
                     vertical-alignment: center;
                 }
 
-                // 标题文字
+                // 标题文字 / Title text
                 Text {
                     text: root.title;
                     font-size: 13px;
@@ -68,6 +69,7 @@ export component TerminalTitlebar inherits Rectangle {
         }
 
         // 右侧 DWM 原生按钮占位区域（系统原生绘制与交互，Slint 保持透明不拦截）
+        // Right-side DWM native button placeholder area (natively drawn by OS; Slint remains transparent)
         Rectangle {
             width: 140px;
             background: transparent;
