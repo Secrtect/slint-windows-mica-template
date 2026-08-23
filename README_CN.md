@@ -2,7 +2,9 @@
 
 # slint-windows-mica-template
 
-一个基于 Slint 的 Windows 平台无边框与 Mica 效果窗口模板与参考实现。
+一个基于 Slint 的 Windows 平台无边框与 Mica 效果新手练习项目与参考实现。
+
+> ⚠️ **说明**：本项目仅为个人学习 Rust、Slint 与 Windows 窗口编程的新手练习项目，非企业级/生产级库或日常使用软件，代码供学习交流与参考。
 
 包含 **DWM Mica 背景材质**、**CBT Hook 防启动白屏/闪烁**、**多显示器鼠标跟随居中**、**Win11 Snap Layouts 贴靠菜单** 以及 **自绘 / DWM 原生两种标题栏按钮** 的接入示例。
 
@@ -33,13 +35,13 @@
 
 ## 📖 简介
 
-在 Windows 平台上使用 Slint 开发桌面应用时，通常会遇到一些平台特定的问题：
+在 Windows 平台上使用 Slint 学习开发桌面应用时，通常会遇到一些平台特定的问题：
 - 缺乏开箱即用的 Win11 Mica 材质与系统深浅色联动；
 - 无边框窗口启动瞬间容易出现白屏闪烁或阴影延迟；
 - 多屏幕环境下弹窗定位和避免超出屏幕；
 - 标题栏非客户区消息处理、最大化贴靠（Snap Layouts）与 8 方向拉伸边框。
 
-本项目基于 Slint + Win32/DWM 子类化，封装了基础的窗口支撑代码，提供了一套可复用的示例与骨架，供学习或作为项目参考。
+本项目基于 Slint + Win32/DWM 子类化，封装了基础的窗口支撑代码，作为新手练习与学习参考。
 
 > 感谢 [@Drew-Chase](https://github.com/Drew-Chase) 开源的 [slint_borderless_windows](https://github.com/Drew-Chase/slint_borderless_windows) 提供的基础思路。
 
@@ -317,7 +319,7 @@ pub fn open() -> Result<(), slint::PlatformError> {
 | **外观与风格** | 100% Slint 自绘，可任意定制图标、间距与配色 | Windows 系统原生绘制的 Min/Max/Close 按钮 |
 | **Win11 Snap Layouts** | ✅ 支持（通过 `WM_NCHITTEST` 返回 `HTMAXBUTTON`） | ✅ 支持（系统原生提供） |
 | **失焦变淡动画** | ✅ 支持（通过 `WM_NCACTIVATE` 联动） | ✅ 支持（系统原生提供） |
-| **适用场景** | 追求整体统一设计语言、个性化主题的现代化桌面软件 | 追求极简、完全贴合系统原生控件外观的工具软件 |
+| **适用场景** | 追求整体统一设计风格、个性化主题的界面 | 追求极简、完全贴合系统原生控件外观的简单工具界面 |
 
 ---
 

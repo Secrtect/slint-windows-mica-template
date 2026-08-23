@@ -2,7 +2,9 @@
 
 # slint-windows-mica-template
 
-A template and reference implementation for borderless windows and Windows 11 Mica effect using Slint.
+A beginner practice project and reference implementation for borderless windows and Windows 11 Mica effect using Slint.
+
+> ⚠️ **Note**: This is a personal beginner practice/learning project, not an enterprise-grade library or production software. Intended for study and reference only.
 
 Demonstrates **DWM Mica backdrop material**, **CBT Hook startup flicker prevention**, **multi-monitor cursor-following window centering**, **Win11 Snap Layouts**, and **custom-drawn vs. DWM native titlebar buttons**.
 
@@ -33,13 +35,13 @@ Demonstrates **DWM Mica backdrop material**, **CBT Hook startup flicker preventi
 
 ## 📖 Overview
 
-When building desktop applications on Windows with Slint, several platform-specific challenges often arise:
+When learning and exploring desktop UI development on Windows with Slint, several platform-specific challenges often arise:
 - Lack of built-in Win11 Mica material and dark/light mode synchronization;
 - Borderless window startup visual flickering or delayed shadow rendering;
 - Multi-monitor window positioning and bounds checking;
 - Non-client area message handling, maximized state snap layouts, and 8-direction resize borders.
 
-This project wraps basic Win32/DWM windowing primitives on top of Slint, providing a clean starter scaffold and practical examples for reference.
+This project wraps basic Win32/DWM windowing primitives on top of Slint as a beginner learning sandbox and reference example.
 
 > Thanks to [@Drew-Chase](https://github.com/Drew-Chase) for the [slint_borderless_windows](https://github.com/Drew-Chase/slint_borderless_windows) project which provided the initial inspiration.
 
@@ -318,7 +320,7 @@ Export in `ui/` entry file and wire up the button click handler in `src/main.rs`
 | **Appearance & Styling** | 100% Slint drawn, customizable icons, spacing, and palettes | Windows DWM native Min/Max/Close caption buttons |
 | **Win11 Snap Layouts** | ✅ Supported (via `WM_NCHITTEST` returning `HTMAXBUTTON`) | ✅ Supported (native OS behavior) |
 | **Inactive Fade Effect**| ✅ Supported (linked via `WM_NCACTIVATE`) | ✅ Supported (native OS behavior) |
-| **Best For** | Modern desktop applications with unified custom branding | Utilities aiming for seamless consistency with OS controls |
+| **Best For** | Custom-branded UI styling practice | Lightweight utilities sticking closely to OS-native look |
 
 ---
 
