@@ -71,9 +71,15 @@ mod inner {
             target_title: Option<String>,
             on_hwnd_ready: impl FnOnce(HWND) + 'static,
         ) -> Result<Self, String> {
-            // 清理可能残留的上下文 / Clear any residual thread-local context
+            // 清理可能残留的上下文：若旧 Hook 尚未自卸载（例如用户快速重复点击创建窗口），
+            // 先取出句柄并正确卸载，防止 Win32 Hook 句柄泄漏。
+            // Clear any residual context: if a previous Hook hasn't self-unhooked yet
+            // (e.g. user rapidly clicks the create-window button), extract and properly
+            // unhook it first to prevent Win32 Hook handle leaks.
             ACTIVE_CONTEXT.with(|ctx| {
-                *ctx.borrow_mut() = None;
+                if let Some(old) = ctx.borrow_mut().take() {
+                    unsafe { UnhookWindowsHookEx(old.hook); }
+                }
             });
 
             let hook = unsafe {
